@@ -3,10 +3,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, QrCode, Calendar, Settings, Heart, Phone, MessageCircle, Download, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Calendar, Settings, Heart, Phone, MessageCircle, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import QRCodeLib from "qrcode";
 import { useAuth } from "@/contexts/AuthContext";
 import { petService } from "@/lib/pets";
 import { authService } from "@/lib/auth";
@@ -15,22 +13,21 @@ import { toast } from "sonner";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { profile, isDemo, isAdmin, logout } = useAuth();
-  const [subscriptionStatus, setSubscriptionStatus] = useState({
-    isActive: false,
-    daysRemaining: 0,
-    planType: "Annual" as "Annual" | "Monthly",
-    endDate: null as string | null
+  const { profile, isAdmin, logout } = useAuth();
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalPets: 0,
+    totalScans: 0,
+    lostPets: 0,
+    activePets: 0,
+    subscriptionStatus: 'Unknown',
+    subscriptionDaysLeft: 0
   });
 
-  const [pets, setPets] = useState<Pet[]>([]);
-  const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [qrLoading, setQrLoading] = useState<Record<number, boolean>>({});
-
-  // Load user data and pets on component mount
+  // Load user's pets and statistics
   useEffect(() => {
-    const loadDashboardData = async () => {
+    const loadUserData = async () => {
       if (!profile) {
         navigate('/login');
         return;
@@ -38,167 +35,56 @@ const Dashboard = () => {
 
       try {
         setLoading(true);
-
-        // Load user's pets
+        
+        // Get user's pets
         const userPets = await petService.getUserPets(profile.id);
         setPets(userPets);
-
-        // Load subscription status if not demo/admin
-        if (!isDemo && !isAdmin) {
-          const subStatus = await authService.getSubscriptionStatus(profile.id);
-          setSubscriptionStatus(subStatus);
-        } else {
-          // Demo users get active subscription
-          setSubscriptionStatus({
-            isActive: true,
-            daysRemaining: 365,
-            planType: "Annual",
-            endDate: "2025-12-31"
-          });
-        }
+        
+        // Update stats
+        const totalScans = userPets.reduce((sum, pet) => sum + (pet.total_scans || 0), 0);
+        const lostPets = userPets.filter(pet => pet.is_lost).length;
+        
+        // Get subscription status
+        const subscriptionStatus = await authService.getSubscriptionStatus(profile.id);
+        
+        setStats({
+          totalPets: userPets.length,
+          totalScans,
+          lostPets,
+          activePets: userPets.filter(pet => pet.is_active).length,
+          subscriptionStatus: subscriptionStatus.isActive ? 'Active' : 'Inactive',
+          subscriptionDaysLeft: subscriptionStatus.daysRemaining || 0
+        });
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
-        toast.error('Failed to load dashboard data');
+        console.error('Failed to load user data:', error);
+        toast.error('Failed to load your dashboard data');
+        
+        // Only redirect if not admin
+        if (!isAdmin) {
+          navigate('/login');
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    loadDashboardData();
-  }, [profile, isDemo, isAdmin, navigate]);
-
-  const generateQRCode = async (pet: Pet) => {
-    try {
-      setQrLoading(prev => ({ ...prev, [pet.id]: true }));
-      
-      const { qrCode } = await petService.generateQRCode(pet.id, pet.username);
-      setQrCodes(prev => ({ ...prev, [pet.username]: qrCode }));
-      
-      // Update pet in state
-      setPets(prev => prev.map(p => p.id === pet.id ? { ...p, qr_code_generated: true, qr_code_url: qrCode } : p));
-      
-      toast.success('QR code generated successfully!');
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      toast.error('Failed to generate QR code');
-    } finally {
-      setQrLoading(prev => ({ ...prev, [pet.id]: false }));
-    }
-  };
-
-  const downloadQRCode = (petUsername: string, petName: string) => {
-    const qrDataUrl = qrCodes[petUsername];
-    if (qrDataUrl) {
-      const link = document.createElement('a');
-      link.href = qrDataUrl;
-      link.download = `${petName}_QR_Code.png`;
-      link.click();
-    }
-  };
-
-  const copyProfileLink = (petUsername: string) => {
-    const profileUrl = `http://192.168.1.40:8081/pet/${petUsername}`;
-    navigator.clipboard.writeText(profileUrl);
-    // You could add a toast notification here
-    alert('Profile link copied to clipboard!');
-  };
+    loadUserData();
+  }, [profile, isAdmin, navigate]);
 
   const viewPetProfile = (petUsername: string) => {
-    const profileUrl = `http://192.168.1.40:8081/pet/${petUsername}`;
+    const profileUrl = `${window.location.origin}/pet/${petUsername}`;
     window.open(profileUrl, '_blank');
   };
 
-  const QRCodeModal = ({ pet }: { pet: Pet }) => {
-    const qrCode = qrCodes[pet.username] || pet.qr_code_url;
-    const profileUrl = `${window.location.origin}/pet/${pet.username}`;
-
-    return (
-      <Dialog>
-        <DialogTrigger asChild>
-                                  <Button 
-                          size="sm" 
-                          onClick={() => !qrCode && generateQRCode(pet)}
-                          disabled={qrLoading[pet.id]}
-                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {qrLoading[pet.id] ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <QrCode className="w-4 h-4 mr-2" />
-                          )}
-                          {qrLoading[pet.id] ? 'Generating...' : qrCode ? 'View QR' : 'Generate QR'}
-                        </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center">QR Code for {pet.name}</DialogTitle>
-            <DialogDescription className="text-center">
-              Scan this QR code to view {pet.name}'s profile
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-4 p-4">
-            {qrCode ? (
-              <>
-                <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
-                  <img src={qrCode} alt={`QR Code for ${pet.name}`} className="w-48 h-48" />
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-gray-600">Profile URL:</p>
-                  <code className="text-xs bg-gray-100 p-2 rounded block break-all">
-                    {profileUrl}
-                  </code>
-                </div>
-                <div className="flex space-x-2 w-full">
-                  <Button 
-                    onClick={() => downloadQRCode(pet.username, pet.name)}
-                    className="flex-1"
-                    variant="outline"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button 
-                    onClick={() => copyProfileLink(pet.username)}
-                    className="flex-1"
-                    variant="outline"
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Link
-                  </Button>
-                </div>
-                <Button 
-                  onClick={() => window.open(profileUrl, '_blank')}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Test Profile Link
-                </Button>
-              </>
-            ) : (
-              <div className="text-center space-y-4">
-                <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <QrCode className="w-16 h-16 text-gray-400" />
-                </div>
-                <Button 
-                  onClick={() => generateQRCode(pet)}
-                  disabled={qrLoading[pet.id]}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {qrLoading[pet.id] ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    'Generate QR Code'
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('Logged out successfully');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Failed to logout');
+    }
   };
 
   return (
@@ -214,7 +100,7 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">
-              {profile?.name} {isDemo ? "(Demo)" : ""}
+              {profile?.name}
             </span>
             <Button variant="ghost" size="sm" className="text-gray-600">
               <Settings className="w-4 h-4 mr-2" />
@@ -224,7 +110,7 @@ const Dashboard = () => {
               variant="ghost" 
               size="sm" 
               className="text-gray-600"
-              onClick={logout}
+              onClick={handleLogout}
             >
               Logout
             </Button>
@@ -245,16 +131,16 @@ const Dashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Subscription Status
-              {!subscriptionStatus.isActive && (
+              {stats.subscriptionStatus === 'Inactive' && (
                 <Badge variant="destructive">Inactive</Badge>
               )}
-              {subscriptionStatus.isActive && (
+              {stats.subscriptionStatus === 'Active' && (
                 <Badge variant="default" className="bg-green-600">Active</Badge>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!subscriptionStatus.isActive ? (
+            {stats.subscriptionStatus === 'Inactive' ? (
               <div className="text-center py-6">
                 <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                 <p className="text-lg font-medium mb-2 text-gray-900">Subscription Not Active</p>
@@ -275,7 +161,7 @@ const Dashboard = () => {
             ) : (
               <div className="text-center py-4">
                 <p className="text-lg font-medium text-green-600">
-                  Active - {subscriptionStatus.daysRemaining} days remaining
+                  Active - {stats.subscriptionDaysLeft} days remaining
                 </p>
               </div>
             )}
@@ -324,17 +210,16 @@ const Dashboard = () => {
                         <p className="text-sm text-blue-600">whitetag.com/pet/{pet.username}</p>
                       </div>
                       <div className="flex flex-col space-y-2">
-                        <QRCodeModal pet={pet} />
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="border-gray-300"
+                          className="border-gray-300 w-24"
                           onClick={() => viewPetProfile(pet.username)}
                         >
                           View Profile
                         </Button>
                         <Link to={`/dashboard/edit-pet/${pet.id}`}>
-                          <Button size="sm" variant="outline" className="border-gray-300">
+                          <Button size="sm" variant="outline" className="border-gray-300 w-24">
                             Edit Pet
                           </Button>
                         </Link>
@@ -357,15 +242,15 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Pets</span>
-                    <span className="font-semibold text-gray-900">{pets.length}</span>
+                    <span className="font-semibold text-gray-900">{stats.totalPets}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">QR Codes Generated</span>
-                    <span className="font-semibold text-gray-900">{pets.filter(p => p.qr_code_generated).length}</span>
+                    <span className="text-gray-600">Active Pets</span>
+                    <span className="font-semibold text-gray-900">{stats.activePets}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Scans</span>
-                    <span className="font-semibold text-gray-900">{pets.reduce((total, pet) => total + pet.total_scans, 0)}</span>
+                    <span className="font-semibold text-gray-900">{stats.totalScans}</span>
                   </div>
                 </div>
               </CardContent>
@@ -388,8 +273,6 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
-
-           
           </div>
         </div>
         </>

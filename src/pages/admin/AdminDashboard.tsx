@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,6 @@ import {
   CheckCircle, 
   XCircle,
   Calendar,
-  Settings,
   LogOut,
   Edit,
   Eye,
@@ -29,11 +29,15 @@ import {
   AlertTriangle,
   Clock,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  QrCode,
+  Download
 } from "lucide-react";
+import QRCodeLib from "qrcode";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminService } from "@/lib/admin";
-import { petService } from "@/lib/pets";
+import { petService, uploadPetPhoto } from "@/lib/pets";
 import type { Pet, User } from "@/lib/supabase";
 
 // Extended Pet type for admin dashboard with owner info
@@ -52,9 +56,12 @@ import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("users");
   const [editingPet, setEditingPet] = useState<PetWithOwner | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -69,13 +76,6 @@ const AdminDashboard = () => {
   const [pets, setPets] = useState<PetWithOwner[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [expiringSubs, setExpiringSubs] = useState<any[]>([]);
-  const [newSubscription, setNewSubscription] = useState<{
-    user_id: number | null;
-    plan_type: 'annual' | 'monthly';
-    amount: number;
-    payment_method: string;
-    payment_reference: string;
-  } | null>(null);
 
   // Load admin dashboard data
   useEffect(() => {
@@ -172,6 +172,23 @@ const AdminDashboard = () => {
     setEditingPet({ ...pet });
   };
 
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !editingPet) return;
+
+    try {
+      setUploadingPhoto(true);
+      const photoUrl = await uploadPetPhoto(file, editingPet.username);
+      setEditingPet({ ...editingPet, photo_url: photoUrl });
+      toast.success("Photo uploaded successfully!");
+    } catch (error) {
+      console.error("Failed to upload photo:", error);
+      toast.error("Failed to upload photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleSavePet = async () => {
     if (!editingPet) return;
     
@@ -184,6 +201,7 @@ const AdminDashboard = () => {
         age: editingPet.age,
         color: editingPet.color,
         description: editingPet.description,
+        photo_url: editingPet.photo_url,
         show_phone: editingPet.show_phone,
         show_whatsapp: editingPet.show_whatsapp,
         show_instagram: editingPet.show_instagram,
@@ -209,7 +227,7 @@ const AdminDashboard = () => {
   };
 
   const handleViewPetProfile = (username: string) => {
-    const profileUrl = `http://localhost:8080/pet/${username}`;
+    const profileUrl = `${window.location.origin}/pet/${username}`;
     window.open(profileUrl, '_blank');
   };
 
@@ -232,57 +250,47 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleCreateSubscription = async () => {
-    if (!newSubscription || !newSubscription.user_id) return;
-    
+  const handleDownloadQRCode = async (pet: PetWithOwner) => {
     try {
-      const today = new Date();
-      const endDate = new Date();
+      const profileUrl = `${window.location.origin}/pet/${pet.username}`;
       
-      if (newSubscription.plan_type === 'annual') {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 1);
-      }
+      // Generate high-quality QR code only
+      const qrCodeDataUrl = await QRCodeLib.toDataURL(profileUrl, {
+        width: 1024, // HD size
+        margin: 4,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+        errorCorrectionLevel: 'H' // High error correction
+      });
+
+      // Download the QR code directly
+      const link = document.createElement('a');
+      link.href = qrCodeDataUrl;
+      link.download = `${pet.username}.png`;
+      link.click();
       
-      const subscriptionData = {
-        plan_type: newSubscription.plan_type,
-        amount: newSubscription.amount,
-        start_date: today.toISOString().split('T')[0],
-        end_date: endDate.toISOString().split('T')[0],
-        payment_method: newSubscription.payment_method,
-        payment_reference: newSubscription.payment_reference
-      };
-      
-      const createdSub = await adminService.createSubscription(newSubscription.user_id, subscriptionData);
-      
-      // Add to subscriptions list
-      setSubscriptions(prevSubs => [createdSub, ...prevSubs]);
-      
-      // Reset form
-      setNewSubscription(null);
-      
-      toast.success("Subscription created successfully!");
+      toast.success('QR code downloaded successfully!');
     } catch (error) {
-      console.error("Failed to create subscription:", error);
-      toast.error("Failed to create subscription. Please try again.");
+      console.error('Failed to generate QR code:', error);
+      toast.error('Failed to generate QR code');
     }
   };
 
-  const handleRenewSubscription = async (subscriptionId: number, planType: 'annual' | 'monthly') => {
+  const handleRenewSubscription = async (subscriptionId: number) => {
     try {
       const today = new Date();
       const endDate = new Date();
       
-      if (planType === 'annual') {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 1);
-      }
+      // Always renew for 1 year at ₹599
+      endDate.setFullYear(endDate.getFullYear() + 1);
       
-      // Update subscription with new dates and active status
+      // Update subscription with new dates, active status, and standardized pricing
       const renewalData = {
         status: 'active' as const,
+        plan_type: 'annual' as const,
+        amount: 599,
         start_date: today.toISOString().split('T')[0],
         end_date: endDate.toISOString().split('T')[0]
       };
@@ -302,14 +310,14 @@ const AdminDashboard = () => {
         prevSubs.filter(sub => sub.id !== subscriptionId)
       );
       
-      toast.success("Subscription renewed successfully!");
+      toast.success("Subscription renewed successfully for 1 year at ₹599!");
     } catch (error) {
       console.error("Failed to renew subscription:", error);
       toast.error("Failed to renew subscription. Please try again.");
     }
   };
 
-  // Derive pending users from loaded data
+  // Derive pending users from loaded data  
   const pendingUsers = users.filter(user => !user.is_active || user.email_verified === false);
 
   // Use real pets data instead of mock data
@@ -317,6 +325,20 @@ const AdminDashboard = () => {
     pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     pet.users?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     pet.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredSubscriptions = subscriptions.filter(sub => 
+    sub.users?.name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.users?.email?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.plan_type?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.status?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase())
+  );
+
+  const filteredExpiringSubs = expiringSubs.filter(sub => 
+    sub.users?.name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.users?.email?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.plan_type?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+    sub.status?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase())
   );
 
   const PetEditModal = () => (
@@ -330,6 +352,48 @@ const AdminDashboard = () => {
         </DialogHeader>
         {editingPet && (
           <div className="space-y-4 mt-4">
+            {/* Photo Upload Section */}
+            <div className="border-b pb-4">
+              <Label>Pet Photo</Label>
+              <div className="flex items-center space-x-4 mt-2">
+                {editingPet.photo_url && (
+                  <img
+                    src={editingPet.photo_url}
+                    alt={editingPet.name}
+                    className="w-20 h-20 object-cover rounded-lg border"
+                  />
+                )}
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    id="photo-upload"
+                    disabled={uploadingPhoto}
+                  />
+                  <label htmlFor="photo-upload">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      disabled={uploadingPhoto}
+                      className="cursor-pointer"
+                      asChild
+                    >
+                      <span>
+                        {uploadingPhoto ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4 mr-2" />
+                        )}
+                        {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="petName">Pet Name</Label>
@@ -463,112 +527,18 @@ const AdminDashboard = () => {
     </Dialog>
   );
 
-  const SubscriptionCreateModal = () => (
-    <Dialog open={!!newSubscription} onOpenChange={() => setNewSubscription(null)}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Create New Subscription</DialogTitle>
-          <DialogDescription>
-            Add a new subscription for a user
-          </DialogDescription>
-        </DialogHeader>
-        {newSubscription && (
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label htmlFor="subscriptionUser">User</Label>
-              <select
-                id="subscriptionUser"
-                value={newSubscription.user_id || ''}
-                onChange={(e) => setNewSubscription({
-                  ...newSubscription, 
-                  user_id: e.target.value ? parseInt(e.target.value) : null
-                })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Select User</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.email})
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="planType">Plan Type</Label>
-                <select
-                  id="planType"
-                  value={newSubscription.plan_type}
-                  onChange={(e) => setNewSubscription({
-                    ...newSubscription, 
-                    plan_type: e.target.value as 'annual' | 'monthly',
-                    amount: e.target.value === 'annual' ? 599 : 99
-                  })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="annual">Annual</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="amount">Amount (₹)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={newSubscription.amount}
-                  onChange={(e) => setNewSubscription({
-                    ...newSubscription, 
-                    amount: parseInt(e.target.value) || 0
-                  })}
-                />
-              </div>
-            </div>
 
-            <div>
-              <Label htmlFor="paymentMethod">Payment Method</Label>
-              <Input
-                id="paymentMethod"
-                value={newSubscription.payment_method}
-                onChange={(e) => setNewSubscription({
-                  ...newSubscription, 
-                  payment_method: e.target.value
-                })}
-                placeholder="e.g., UPI, Credit Card, Bank Transfer"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="paymentReference">Payment Reference</Label>
-              <Input
-                id="paymentReference"
-                value={newSubscription.payment_reference}
-                onChange={(e) => setNewSubscription({
-                  ...newSubscription, 
-                  payment_reference: e.target.value
-                })}
-                placeholder="Transaction ID or Reference Number"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setNewSubscription(null)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleCreateSubscription} 
-                className="bg-blue-600 hover:bg-blue-700"
-                disabled={!newSubscription.user_id || !newSubscription.payment_method || !newSubscription.payment_reference}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Create Subscription
-              </Button>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
+  const handleAdminLogout = async () => {
+    try {
+      await logout();
+      toast.success('Logged out successfully');
+      navigate('/');
+    } catch (error) {
+      console.error('Admin logout error:', error);
+      toast.error('Failed to logout');
+    }
+  };
 
   if (loading) {
     return (
@@ -595,7 +565,7 @@ const AdminDashboard = () => {
           </div>
           <div className="flex items-center space-x-4">
           
-            <Button variant="ghost" className="text-white hover:bg-gray-700">
+            <Button variant="ghost" className="text-white hover:bg-gray-700" onClick={handleAdminLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -782,7 +752,7 @@ const AdminDashboard = () => {
 
           <TabsContent value="subscriptions" className="space-y-6">
             {/* Subscription Alerts */}
-            {expiringSubs.length > 0 && (
+            {filteredExpiringSubs.length > 0 && (
               <Card className="border-orange-200 bg-orange-50">
                 <CardHeader>
                   <CardTitle className="flex items-center text-orange-800">
@@ -790,12 +760,12 @@ const AdminDashboard = () => {
                     Subscriptions Nearing Expiry
                   </CardTitle>
                   <CardDescription className="text-orange-700">
-                    {expiringSubs.length} subscriptions expire within the next 30 days
+                    {filteredExpiringSubs.length} subscriptions expire within the next 30 days
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {expiringSubs.slice(0, 5).map((sub) => (
+                    {filteredExpiringSubs.slice(0, 5).map((sub) => (
                       <div key={sub.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-orange-200">
                         <div>
                           <p className="font-medium">{sub.users?.name}</p>
@@ -814,7 +784,7 @@ const AdminDashboard = () => {
                           <p className="text-sm font-medium mt-1">₹{sub.amount}</p>
                           <Button
                             size="sm"
-                            onClick={() => handleRenewSubscription(sub.id, sub.plan_type)}
+                            onClick={() => handleRenewSubscription(sub.id)}
                             className="bg-green-600 hover:bg-green-700 mt-2"
                           >
                             Renew
@@ -832,28 +802,22 @@ const AdminDashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   All Subscriptions
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary">{subscriptions.length} total</Badge>
-                    <Button 
-                      onClick={() => setNewSubscription({
-                        user_id: null,
-                        plan_type: 'annual',
-                        amount: 599,
-                        payment_method: '',
-                        payment_reference: ''
-                      })}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Subscription
-                    </Button>
-                  </div>
+                  <Badge variant="secondary">{filteredSubscriptions.length} of {subscriptions.length}</Badge>
                 </CardTitle>
                 <CardDescription>
                   Complete overview of all user subscriptions
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex items-center space-x-2 mb-6">
+                  <Search className="w-4 h-4 text-gray-500" />
+                  <Input
+                    placeholder="Search subscriptions by user, plan, or status..."
+                    value={subscriptionSearchTerm}
+                    onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -868,85 +832,96 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {subscriptions.map((sub) => {
-                      const daysLeft = Math.ceil((new Date(sub.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      const isExpiringSoon = daysLeft <= 30 && daysLeft > 0;
-                      const isExpired = daysLeft <= 0;
-                      
-                      return (
-                        <TableRow key={sub.id} className={isExpiringSoon ? "bg-orange-50" : isExpired ? "bg-red-50" : ""}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{sub.users?.name || 'Unknown'}</p>
-                              <p className="text-sm text-gray-600">{sub.users?.email || 'Unknown'}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {sub.plan_type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={sub.status === 'active' ? 'default' : 'destructive'}
-                              className={
-                                sub.status === 'active' ? 'bg-green-600' : 
-                                sub.status === 'expired' ? 'bg-red-600' : 
-                                'bg-gray-600'
-                              }
-                            >
-                              {sub.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">₹{sub.amount}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm">{new Date(sub.start_date).toLocaleDateString()}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm">{new Date(sub.end_date).toLocaleDateString()}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              {isExpired ? (
-                                <span className="text-red-600 font-medium">Expired</span>
-                              ) : isExpiringSoon ? (
-                                <span className="text-orange-600 font-medium">{daysLeft} days</span>
-                              ) : (
-                                <span className="text-green-600 font-medium">{daysLeft} days</span>
-                              )}
-                              {isExpiringSoon && (
-                                <Clock className="w-4 h-4 ml-1 text-orange-500" />
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              {(isExpired || isExpiringSoon) && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleRenewSubscription(sub.id, sub.plan_type)}
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  Renew
-                                </Button>
-                              )}
-                              {sub.status === 'active' && !isExpired && !isExpiringSoon && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleRenewSubscription(sub.id, sub.plan_type)}
-                                  className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
-                                >
-                                  Extend
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {filteredSubscriptions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                          {subscriptionSearchTerm ? 
+                            `No subscriptions found matching "${subscriptionSearchTerm}"` : 
+                            'No subscriptions available'
+                          }
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredSubscriptions.map((sub) => {
+                        const daysLeft = Math.ceil((new Date(sub.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                        const isExpiringSoon = daysLeft <= 30 && daysLeft > 0;
+                        const isExpired = daysLeft <= 0;
+                        
+                        return (
+                          <TableRow key={sub.id} className={isExpiringSoon ? "bg-orange-50" : isExpired ? "bg-red-50" : ""}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{sub.users?.name || 'Unknown'}</p>
+                                <p className="text-sm text-gray-600">{sub.users?.email || 'Unknown'}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">
+                                {sub.plan_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={sub.status === 'active' ? 'default' : 'destructive'}
+                                className={
+                                  sub.status === 'active' ? 'bg-green-600' : 
+                                  sub.status === 'expired' ? 'bg-red-600' : 
+                                  'bg-gray-600'
+                                }
+                              >
+                                {sub.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">₹{sub.amount}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{new Date(sub.start_date).toLocaleDateString()}</span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{new Date(sub.end_date).toLocaleDateString()}</span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center">
+                                {isExpired ? (
+                                  <span className="text-red-600 font-medium">Expired</span>
+                                ) : isExpiringSoon ? (
+                                  <span className="text-orange-600 font-medium">{daysLeft} days</span>
+                                ) : (
+                                  <span className="text-green-600 font-medium">{daysLeft} days</span>
+                                )}
+                                {isExpiringSoon && (
+                                  <Clock className="w-4 h-4 ml-1 text-orange-500" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                {(isExpired || isExpiringSoon) && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleRenewSubscription(sub.id)}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    Renew
+                                  </Button>
+                                )}
+                                {sub.status === 'active' && !isExpired && !isExpiringSoon && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRenewSubscription(sub.id)}
+                                    className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                                  >
+                                    Renew
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -1034,6 +1009,15 @@ const AdminDashboard = () => {
                             </Button>
                             <Button
                               size="sm"
+                              variant="outline"
+                              onClick={() => handleDownloadQRCode(pet)}
+                              title="Download HD QR Code"
+                              className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                            >
+                              <QrCode className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
                               onClick={() => handleTogglePetStatus(pet.id, pet.is_active)}
                               className={pet.is_active ? "bg-orange-600 hover:bg-orange-700" : "bg-green-600 hover:bg-green-700"}
                               title={pet.is_active ? "Deactivate Pet" : "Activate Pet"}
@@ -1061,7 +1045,6 @@ const AdminDashboard = () => {
       </div>
 
       <PetEditModal />
-      <SubscriptionCreateModal />
     </div>
   );
 };

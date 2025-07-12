@@ -2,6 +2,34 @@ import { supabase } from './supabase'
 import type { Pet, QRScan } from './supabase'
 import QRCodeLib from 'qrcode'
 
+// File upload function
+export const uploadPetPhoto = async (file: File, petUsername: string): Promise<string> => {
+  try {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${petUsername}_${Date.now()}.${fileExt}`
+    const filePath = `pet-photos/${fileName}`
+
+    const { data, error } = await supabase.storage
+      .from('files')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+
+    if (error) throw error
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('files')
+      .getPublicUrl(filePath)
+
+    return urlData.publicUrl
+  } catch (error) {
+    console.error('Upload error:', error)
+    throw error
+  }
+}
+
 // Pet management functions
 export const petService = {
   // Get all pets for a user
@@ -74,18 +102,29 @@ export const petService = {
   // Get single pet by ID
   async getPetById(petId: number) {
     try {
+      console.log('Fetching pet by ID:', petId);
+      
       const { data, error } = await supabase
         .from('pets')
         .select('*')
         .eq('id', petId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error in getPetById:', error);
+        throw error;
+      }
 
-      return data
+      if (!data) {
+        console.warn('No pet found with ID:', petId);
+        throw new Error(`Pet with ID ${petId} not found`);
+      }
+
+      console.log('Pet data loaded successfully:', data);
+      return data;
     } catch (error) {
-      console.error('Get pet by ID error:', error)
-      throw error
+      console.error('Get pet by ID error:', error);
+      throw error;
     }
   },
 
@@ -179,8 +218,12 @@ export const petService = {
   // Generate QR code for pet
   async generateQRCode(petId: number, petUsername: string) {
     try {
+      console.log('Generating QR code for pet:', petId, petUsername);
+      
       // Generate QR code URL
-      const profileUrl = `${window.location.origin}/pet/${petUsername}`
+      const profileUrl = `${window.location.origin}/pet/${petUsername}`;
+      console.log('Profile URL:', profileUrl);
+      
       const qrDataUrl = await QRCodeLib.toDataURL(profileUrl, {
         width: 256,
         margin: 2,
@@ -188,7 +231,9 @@ export const petService = {
           dark: '#000000',
           light: '#FFFFFF',
         },
-      })
+      });
+
+      console.log('QR code generated successfully');
 
       // Update pet with QR code info
       const { data, error } = await supabase
@@ -199,14 +244,18 @@ export const petService = {
         })
         .eq('id', petId)
         .select()
-        .single()
+        .single();
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error in generateQRCode:', error);
+        throw error;
+      }
 
-      return { qrCode: qrDataUrl, profileUrl, pet: data }
+      console.log('Pet updated with QR code info');
+      return { qrCode: qrDataUrl, profileUrl, pet: data };
     } catch (error) {
-      console.error('Generate QR code error:', error)
-      throw error
+      console.error('Generate QR code error:', error);
+      throw error;
     }
   },
 

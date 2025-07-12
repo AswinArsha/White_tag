@@ -97,30 +97,6 @@ export const authService = {
     }
   },
 
-  // Demo login (no password required)
-  async demoLogin() {
-    try {
-      // Get demo user from database
-      const { data: demoUser, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('is_demo', true)
-        .eq('email', 'demo@whitetag.com')
-        .single()
-
-      if (error) throw error
-
-      // Store demo session
-      localStorage.setItem('whitetag_demo_user', 'true')
-      localStorage.setItem('whitetag_user_id', demoUser.id.toString())
-
-      return { user: null, profile: demoUser, isDemoUser: true }
-    } catch (error) {
-      console.error('Demo login error:', error)
-      throw error
-    }
-  },
-
   // Admin login
   async adminLogin(email: string, password: string) {
     try {
@@ -167,7 +143,6 @@ export const authService = {
       // Clear our custom session
       localStorage.removeItem('whitetag_user_id')
       localStorage.removeItem('whitetag_admin_id')
-      localStorage.removeItem('whitetag_demo_user')
     } catch (error) {
       console.error('Logout error:', error)
       throw error
@@ -200,9 +175,6 @@ export const authService = {
         return { user: null, profile: null }
       }
 
-      // Check if demo user
-      const isDemoUser = localStorage.getItem('whitetag_demo_user') === 'true'
-
       // Get user profile from database
       const { data: profile, error: profileError } = await supabase
         .from('users')
@@ -214,16 +186,14 @@ export const authService = {
       if (profileError || !profile) {
         // Clear invalid session
         localStorage.removeItem('whitetag_user_id')
-        localStorage.removeItem('whitetag_demo_user')
         return { user: null, profile: null }
       }
 
-      return { user: null, profile, isDemoUser }
+      return { user: null, profile }
     } catch (error) {
       console.error('Get current user error:', error)
       localStorage.removeItem('whitetag_user_id')
       localStorage.removeItem('whitetag_admin_id')
-      localStorage.removeItem('whitetag_demo_user')
       return { user: null, profile: null }
     }
   },

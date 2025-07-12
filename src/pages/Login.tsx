@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Heart, Eye, Loader2 } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, demoLogin, loading } = useAuth();
+  const { login, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,20 +26,6 @@ const Login = () => {
       navigate("/dashboard");
     } catch (error: any) {
       toast.error(error.message || "Login failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      await demoLogin();
-      toast.success("Demo login successful!");
-      navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Demo login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -62,35 +48,6 @@ const Login = () => {
           <CardDescription className="text-base text-gray-600">Sign in to your pet parent account</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Demo Login Button */}
-          <div className="mb-6">
-            <Button 
-              onClick={handleDemoLogin}
-              disabled={isLoading || loading}
-              className="w-full h-12 text-base bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-              type="button"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Eye className="w-4 h-4 mr-2" />
-              )}
-              {isLoading ? "Logging in..." : "Try Demo (No Login Required)"}
-            </Button>
-            <p className="text-xs text-gray-500 text-center mt-2">
-              Explore the app interface without creating an account
-            </p>
-          </div>
-
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or login with credentials</span>
-            </div>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <Label htmlFor="email" className="text-base font-medium text-gray-700">Email</Label>

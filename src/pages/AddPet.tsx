@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Upload, Heart } from "lucide-react";
+import { ArrowLeft, Upload, Heart, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { uploadPetPhoto } from "@/lib/pets";
 
 const AddPet = () => {
   const navigate = useNavigate();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -19,6 +22,7 @@ const AddPet = () => {
     age: "",
     color: "",
     description: "",
+    photo_url: "",
     ownerName: "",
     ownerPhone: "",
     ownerWhatsApp: "",
@@ -35,6 +39,26 @@ const AddPet = () => {
       ...formData,
       [field]: value
     });
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Generate a temporary username for upload (will be replaced with actual username later)
+    const tempUsername = `temp_${Date.now()}`;
+
+    try {
+      setUploadingPhoto(true);
+      const photoUrl = await uploadPetPhoto(file, tempUsername);
+      setFormData({ ...formData, photo_url: photoUrl });
+      toast.success("Photo uploaded successfully!");
+    } catch (error) {
+      console.error("Failed to upload photo:", error);
+      toast.error("Failed to upload photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -78,13 +102,62 @@ const AddPet = () => {
               <CardDescription>Upload a clear photo of your pet</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-4">Click to upload or drag and drop</p>
-                <Button type="button" variant="outline">
-                  Choose Photo
-                </Button>
-              </div>
+              {formData.photo_url ? (
+                <div className="space-y-4">
+                  <img
+                    src={formData.photo_url}
+                    alt="Pet preview"
+                    className="w-40 h-40 object-cover rounded-lg border mx-auto"
+                  />
+                  <div className="text-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                      id="photo-upload-replace"
+                      disabled={uploadingPhoto}
+                    />
+                    <label htmlFor="photo-upload-replace">
+                      <Button type="button" variant="outline" disabled={uploadingPhoto} asChild>
+                        <span className="cursor-pointer">
+                          {uploadingPhoto ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          {uploadingPhoto ? 'Uploading...' : 'Change Photo'}
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-4">Click to upload or drag and drop</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    id="photo-upload"
+                    disabled={uploadingPhoto}
+                  />
+                  <label htmlFor="photo-upload">
+                    <Button type="button" variant="outline" disabled={uploadingPhoto} asChild>
+                      <span className="cursor-pointer">
+                        {uploadingPhoto ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4 mr-2" />
+                        )}
+                        {uploadingPhoto ? 'Uploading...' : 'Choose Photo'}
+                      </span>
+                    </Button>
+                  </label>
+                </div>
+              )}
             </CardContent>
           </Card>
 

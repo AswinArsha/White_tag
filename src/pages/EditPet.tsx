@@ -8,19 +8,20 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Heart, ArrowLeft, Save, Upload, User, Phone, Instagram, MapPin, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { petService } from "@/lib/pets";
+import { petService, uploadPetPhoto } from "@/lib/pets";
 import type { Pet } from "@/lib/supabase";
 import { toast } from "sonner";
 
 const EditPet = () => {
   const { petId } = useParams();
   const navigate = useNavigate();
-  const { profile, isDemo } = useAuth();
+  const { profile } = useAuth();
   
   // State management
   const [originalPet, setOriginalPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // Editable form state
   const [petData, setPetData] = useState<Partial<Pet>>({
@@ -52,8 +53,8 @@ const EditPet = () => {
         setLoading(true);
         const pet = await petService.getPetById(parseInt(petId));
         
-        // Check if user owns this pet (or is demo/admin)
-        if (!isDemo && pet.user_id !== profile.id) {
+        // Check if user owns this pet
+        if (pet.user_id !== profile.id) {
           toast.error('You can only edit your own pets');
           navigate('/dashboard');
           return;
@@ -86,7 +87,24 @@ const EditPet = () => {
     };
 
     loadPetData();
-  }, [petId, profile, isDemo, navigate]);
+  }, [petId, profile, navigate]);
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !petData.username) return;
+
+    try {
+      setUploadingPhoto(true);
+      const photoUrl = await uploadPetPhoto(file, petData.username);
+      setPetData(prev => ({ ...prev, photo_url: photoUrl }));
+      toast.success("Photo uploaded successfully!");
+    } catch (error) {
+      console.error("Failed to upload photo:", error);
+      toast.error("Failed to upload photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!originalPet || !petData.name || !petData.username) {
@@ -131,21 +149,7 @@ const EditPet = () => {
     }));
   };
 
-  const handleOwnerChange = (field: string, value: string | boolean) => {
-    console.log(`Updating ${field} to:`, value); // Debug log
-    console.log("Previous state:", petData.owner); // Debug previous state
-    setPetData(prev => {
-      const newState = {
-        ...prev,
-        owner: {
-          ...prev.owner,
-          [field]: value
-        }
-      };
-      console.log("New state will be:", newState.owner); // Debug new state
-      return newState;
-    });
-  };
+  // Remove the handleOwnerChange function as it's not needed anymore
 
   if (loading) {
     return (
@@ -185,22 +189,18 @@ const EditPet = () => {
               onClick={() => navigate("/dashboard")}
               className="text-gray-600 hover:text-gray-900"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
+              <ArrowLeft className="w-4 h-4 mr-1" />
               Back to Dashboard
             </Button>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Heart className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">WhiteTag</h1>
-              <p className="text-xs text-gray-500">Edit Pet Profile</p>
-            </div>
+            <span className="text-xl font-bold text-gray-900">Edit Pet</span>
           </div>
         </div>
 
-        {/* Edit Form */}
         <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden mb-6">
           <CardContent className="p-0">
             {/* Pet Image Section */}
@@ -218,10 +218,31 @@ const EditPet = () => {
                 </Badge>
               </div>
               <div className="absolute top-4 right-4">
-                <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border border-white/30">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Change Photo
-                </Button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  id="photo-upload"
+                  disabled={uploadingPhoto}
+                />
+                <label htmlFor="photo-upload">
+                  <Button 
+                    size="sm" 
+                    className="bg-white/20 hover:bg-white/30 text-white border border-white/30 cursor-pointer"
+                    disabled={uploadingPhoto}
+                    asChild
+                  >
+                    <span>
+                      {uploadingPhoto ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4 mr-2" />
+                      )}
+                      {uploadingPhoto ? 'Uploading...' : 'Change Photo'}
+                    </span>
+                  </Button>
+                </label>
               </div>
             </div>
 
@@ -306,71 +327,22 @@ const EditPet = () => {
                 </div>
               </div>
 
-              {/* Owner Information */}
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <User className="w-5 h-5 mr-2" />
-                  Owner Information
-                </h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="ownerName" className="text-sm font-medium text-gray-700">Your Name</Label>
-                    <Input
-                      id="ownerName"
-                      value={petData.owner.name}
-                      onChange={(e) => handleOwnerChange("name", e.target.value)}
-                      className="mt-1"
-                      placeholder="Enter your name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone" className="text-sm font-medium text-gray-700">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      value={petData.owner.phone}
-                      onChange={(e) => handleOwnerChange("phone", e.target.value)}
-                      className="mt-1"
-                      placeholder="+91 9876543210"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">WhatsApp Number</Label>
-                    <Input
-                      id="whatsapp"
-                      value={petData.owner.whatsapp}
-                      onChange={(e) => handleOwnerChange("whatsapp", e.target.value)}
-                      className="mt-1"
-                      placeholder="+91 9876543210"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="instagram" className="text-sm font-medium text-gray-700">Instagram Handle</Label>
-                    <Input
-                      id="instagram"
-                      value={petData.owner.instagram}
-                      onChange={(e) => handleOwnerChange("instagram", e.target.value)}
-                      className="mt-1"
-                      placeholder="@your_username"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="address" className="text-sm font-medium text-gray-700">Address</Label>
-                    <Textarea
-                      id="address"
-                      value={petData.owner.address}
-                      onChange={(e) => handleOwnerChange("address", e.target.value)}
-                      className="mt-1"
-                      rows={2}
-                      placeholder="Enter your full address"
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* Privacy Settings */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Privacy Settings</h3>
                 <p className="text-sm text-gray-600 mb-4">Choose what information to show publicly when someone scans your pet's QR code</p>
+                
+                {/* Contact Information Note */}
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center">
+                    <User className="w-5 h-5 text-blue-600 mr-2" />
+                    <h4 className="font-medium text-blue-900">Contact Information</h4>
+                  </div>
+                  <p className="text-sm text-blue-800 mt-1">
+                    Your contact information (name, phone, WhatsApp, Instagram, address) is managed in your profile settings. 
+                    The privacy settings below control what information is shown when someone scans your pet's QR code.
+                  </p>
+                </div>
                 
                 {/* Debug info - remove this later */}
                 <div className="mb-4 p-2 bg-blue-50 rounded text-xs text-blue-800">
