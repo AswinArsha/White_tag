@@ -1,13 +1,17 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Heart } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
+import { authService } from "@/lib/auth";
+import { toast } from "sonner";
 
 const Register = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -23,10 +27,42 @@ const Register = () => {
     });
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Registration attempt:", formData);
-    // Handle registration logic here
+    
+    // Validate form
+    if (!formData.name || !formData.email || !formData.phone || !formData.password) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await authService.register(formData.email, formData.password, {
+        name: formData.name,
+        phone: formData.phone
+      });
+
+      toast.success("Account created successfully! Please wait for admin approval.");
+      navigate("/login");
+    } catch (error: any) {
+      console.error("Registration failed:", error);
+      toast.error(error.message || "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,6 +90,7 @@ const Register = () => {
                 value={formData.name}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -66,6 +103,7 @@ const Register = () => {
                 value={formData.email}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -78,6 +116,7 @@ const Register = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -90,6 +129,7 @@ const Register = () => {
                 value={formData.password}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -102,10 +142,18 @@ const Register = () => {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                "Create Account"
+              )}
             </Button>
           </form>
           

@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Upload, Heart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { uploadPetPhoto } from "@/lib/pets";
+import { useAuth } from "@/contexts/AuthContext";
+import { petService, uploadPetPhoto } from "@/lib/pets";
 
 const AddPet = () => {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -23,11 +26,6 @@ const AddPet = () => {
     color: "",
     description: "",
     photo_url: "",
-    ownerName: "",
-    ownerPhone: "",
-    ownerWhatsApp: "",
-    ownerInstagram: "",
-    ownerAddress: "",
     showPhone: true,
     showWhatsApp: true,
     showInstagram: false,
@@ -61,11 +59,69 @@ const AddPet = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const generateUsername = (petName: string) => {
+    // Generate a username from pet name
+    const baseUsername = petName.toLowerCase()
+      .replace(/[^a-z0-9]/g, '_') // Replace non-alphanumeric with underscore
+      .replace(/_+/g, '_') // Replace multiple underscores with single
+      .replace(/^_|_$/g, '') // Remove leading/trailing underscores
+      .substring(0, 20); // Limit length
+    
+    // Add random suffix to make it unique
+    const suffix = Math.random().toString(36).substring(2, 6);
+    return `${baseUsername}_${suffix}`;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Adding pet:", formData);
-    // Handle pet creation logic here
-    navigate("/dashboard");
+    
+    if (!profile) {
+      toast.error("Please login to add pets");
+      navigate("/login");
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.name || !formData.type) {
+      toast.error("Please fill in pet name and type");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Generate unique username
+      const username = generateUsername(formData.name);
+
+      // Prepare pet data
+      const petData = {
+        name: formData.name,
+        username: username,
+        type: formData.type as 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Other',
+        breed: formData.breed || undefined,
+        age: formData.age || undefined,
+        color: formData.color || undefined,
+        description: formData.description || undefined,
+        photo_url: formData.photo_url || undefined,
+        show_phone: formData.showPhone,
+        show_whatsapp: formData.showWhatsApp,
+        show_instagram: formData.showInstagram,
+        show_address: formData.showAddress
+      };
+
+      console.log("Creating pet:", petData);
+
+      // Create the pet
+      await petService.createPet(profile.id, petData);
+
+      toast.success(`${formData.name} has been added successfully!`);
+      navigate("/dashboard");
+    } catch (error: any) {
+      console.error("Failed to create pet:", error);
+      toast.error(error.message || "Failed to add pet. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -74,7 +130,7 @@ const AddPet = () => {
       <header className="bg-background/80 backdrop-blur-sm border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+            <Button variant="ghost" onClick={() => navigate("/dashboard")} disabled={submitting}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>
@@ -116,10 +172,10 @@ const AddPet = () => {
                       onChange={handlePhotoUpload}
                       className="hidden"
                       id="photo-upload-replace"
-                      disabled={uploadingPhoto}
+                      disabled={uploadingPhoto || submitting}
                     />
                     <label htmlFor="photo-upload-replace">
-                      <Button type="button" variant="outline" disabled={uploadingPhoto} asChild>
+                      <Button type="button" variant="outline" disabled={uploadingPhoto || submitting} asChild>
                         <span className="cursor-pointer">
                           {uploadingPhoto ? (
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -142,10 +198,10 @@ const AddPet = () => {
                     onChange={handlePhotoUpload}
                     className="hidden"
                     id="photo-upload"
-                    disabled={uploadingPhoto}
+                    disabled={uploadingPhoto || submitting}
                   />
                   <label htmlFor="photo-upload">
-                    <Button type="button" variant="outline" disabled={uploadingPhoto} asChild>
+                    <Button type="button" variant="outline" disabled={uploadingPhoto || submitting} asChild>
                       <span className="cursor-pointer">
                         {uploadingPhoto ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -177,20 +233,21 @@ const AddPet = () => {
                     onChange={(e) => handleChange("name", e.target.value)}
                     placeholder="e.g., Fluffy"
                     required
+                    disabled={submitting}
                   />
                 </div>
                 <div>
                   <Label htmlFor="type">Pet Type *</Label>
-                  <Select onValueChange={(value) => handleChange("type", value)}>
+                  <Select onValueChange={(value) => handleChange("type", value)} disabled={submitting}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select pet type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dog">Dog</SelectItem>
-                      <SelectItem value="cat">Cat</SelectItem>
-                      <SelectItem value="bird">Bird</SelectItem>
-                      <SelectItem value="rabbit">Rabbit</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="Dog">Dog</SelectItem>
+                      <SelectItem value="Cat">Cat</SelectItem>
+                      <SelectItem value="Bird">Bird</SelectItem>
+                      <SelectItem value="Rabbit">Rabbit</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -204,6 +261,7 @@ const AddPet = () => {
                     value={formData.breed}
                     onChange={(e) => handleChange("breed", e.target.value)}
                     placeholder="e.g., Golden Retriever"
+                    disabled={submitting}
                   />
                 </div>
                 <div>
@@ -213,6 +271,7 @@ const AddPet = () => {
                     value={formData.age}
                     onChange={(e) => handleChange("age", e.target.value)}
                     placeholder="e.g., 2 years"
+                    disabled={submitting}
                   />
                 </div>
               </div>
@@ -224,6 +283,7 @@ const AddPet = () => {
                   value={formData.color}
                   onChange={(e) => handleChange("color", e.target.value)}
                   placeholder="e.g., Brown with white patches"
+                  disabled={submitting}
                 />
               </div>
 
@@ -235,112 +295,88 @@ const AddPet = () => {
                   onChange={(e) => handleChange("description", e.target.value)}
                   placeholder="Any special characteristics, behavior, or medical conditions..."
                   rows={3}
+                  disabled={submitting}
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Owner Contact Details */}
+          {/* Privacy Settings */}
           <Card>
             <CardHeader>
-              <CardTitle>Owner Contact Information</CardTitle>
-              <CardDescription>How people can reach you if they find your pet</CardDescription>
+              <CardTitle>Privacy Settings</CardTitle>
+              <CardDescription>Choose what contact information to show publicly when someone scans your pet's QR code</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="ownerName">Your Name *</Label>
-                <Input
-                  id="ownerName"
-                  value={formData.ownerName}
-                  onChange={(e) => handleChange("ownerName", e.target.value)}
-                  placeholder="Your full name"
-                  required
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="ownerPhone">Phone Number *</Label>
-                  <Input
-                    id="ownerPhone"
-                    value={formData.ownerPhone}
-                    onChange={(e) => handleChange("ownerPhone", e.target.value)}
-                    placeholder="+91 9876543210"
-                    required
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="showPhone"
+                    checked={formData.showPhone}
+                    onCheckedChange={(checked) => handleChange("showPhone", checked)}
+                    disabled={submitting}
                   />
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Checkbox
-                      id="showPhone"
-                      checked={formData.showPhone}
-                      onCheckedChange={(checked) => handleChange("showPhone", checked)}
-                    />
-                    <Label htmlFor="showPhone" className="text-sm">Show phone number publicly</Label>
-                  </div>
+                  <Label htmlFor="showPhone" className="text-sm">Show your phone number publicly</Label>
                 </div>
-                <div>
-                  <Label htmlFor="ownerWhatsApp">WhatsApp Number</Label>
-                  <Input
-                    id="ownerWhatsApp"
-                    value={formData.ownerWhatsApp}
-                    onChange={(e) => handleChange("ownerWhatsApp", e.target.value)}
-                    placeholder="+91 9876543210"
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="showWhatsApp"
+                    checked={formData.showWhatsApp}
+                    onCheckedChange={(checked) => handleChange("showWhatsApp", checked)}
+                    disabled={submitting}
                   />
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Checkbox
-                      id="showWhatsApp"
-                      checked={formData.showWhatsApp}
-                      onCheckedChange={(checked) => handleChange("showWhatsApp", checked)}
-                    />
-                    <Label htmlFor="showWhatsApp" className="text-sm">Show WhatsApp publicly</Label>
-                  </div>
+                  <Label htmlFor="showWhatsApp" className="text-sm">Show your WhatsApp number publicly</Label>
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="ownerInstagram">Instagram Handle</Label>
-                <Input
-                  id="ownerInstagram"
-                  value={formData.ownerInstagram}
-                  onChange={(e) => handleChange("ownerInstagram", e.target.value)}
-                  placeholder="@your_handle"
-                />
-                <div className="flex items-center space-x-2 mt-2">
+                
+                <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showInstagram"
                     checked={formData.showInstagram}
                     onCheckedChange={(checked) => handleChange("showInstagram", checked)}
+                    disabled={submitting}
                   />
-                  <Label htmlFor="showInstagram" className="text-sm">Show Instagram publicly</Label>
+                  <Label htmlFor="showInstagram" className="text-sm">Show your Instagram handle publicly</Label>
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="ownerAddress">Address</Label>
-                <Textarea
-                  id="ownerAddress"
-                  value={formData.ownerAddress}
-                  onChange={(e) => handleChange("ownerAddress", e.target.value)}
-                  placeholder="Your home address"
-                  rows={2}
-                />
-                <div className="flex items-center space-x-2 mt-2">
+                
+                <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showAddress"
                     checked={formData.showAddress}
                     onCheckedChange={(checked) => handleChange("showAddress", checked)}
+                    disabled={submitting}
                   />
-                  <Label htmlFor="showAddress" className="text-sm">Show address publicly</Label>
+                  <Label htmlFor="showAddress" className="text-sm">Show your address publicly</Label>
                 </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Your contact information will be taken from your profile settings. 
+                  These privacy settings control what information is shown when someone scans your pet's QR code.
+                </p>
               </div>
             </CardContent>
           </Card>
 
           <div className="flex justify-end space-x-4">
-            <Button type="button" variant="outline" onClick={() => navigate("/dashboard")}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate("/dashboard")}
+              disabled={submitting}
+            >
               Cancel
             </Button>
-            <Button type="submit">
-              Create Pet Profile
+            <Button type="submit" disabled={submitting || uploadingPhoto}>
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating Pet Profile...
+                </>
+              ) : (
+                "Create Pet Profile"
+              )}
             </Button>
           </div>
         </form>

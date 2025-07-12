@@ -125,6 +125,7 @@ const AdminDashboard = () => {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       status: user.is_active ? "Active" : "Pending",
       pets: userPetCount
     };
@@ -719,6 +720,7 @@ const AdminDashboard = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
+                        <TableHead>Phone</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Pets</TableHead>
                       </TableRow>
@@ -731,6 +733,9 @@ const AdminDashboard = () => {
                               <p className="font-medium">{user.name}</p>
                               <p className="text-sm text-gray-600">{user.email}</p>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm">{user.phone || 'Not provided'}</p>
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -770,6 +775,7 @@ const AdminDashboard = () => {
                         <div>
                           <p className="font-medium">{sub.users?.name}</p>
                           <p className="text-sm text-gray-600">{sub.users?.email}</p>
+                          <p className="text-sm text-gray-600">{sub.users?.phone || 'No phone'}</p>
                           <p className="text-xs text-orange-700">
                             Expires: {new Date(sub.end_date).toLocaleDateString()} 
                             <span className="ml-2">
@@ -822,6 +828,7 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Amount</TableHead>
@@ -834,7 +841,7 @@ const AdminDashboard = () => {
                   <TableBody>
                     {filteredSubscriptions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                           {subscriptionSearchTerm ? 
                             `No subscriptions found matching "${subscriptionSearchTerm}"` : 
                             'No subscriptions available'
@@ -854,6 +861,9 @@ const AdminDashboard = () => {
                                 <p className="font-medium">{sub.users?.name || 'Unknown'}</p>
                                 <p className="text-sm text-gray-600">{sub.users?.email || 'Unknown'}</p>
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm">{sub.users?.phone || 'Not provided'}</p>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">
