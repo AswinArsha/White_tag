@@ -23,6 +23,7 @@ export interface User {
   updated_at: string
 }
 
+// Updated Pet interface for src/lib/supabase.ts
 export interface Pet {
   id: number
   user_id: number
@@ -34,6 +35,11 @@ export interface Pet {
   color?: string
   description?: string
   photo_url?: string
+  // Contact information fields (newly added)
+  whatsapp?: string
+  instagram?: string
+  address?: string
+  // Privacy settings
   show_phone: boolean
   show_whatsapp: boolean
   show_instagram: boolean

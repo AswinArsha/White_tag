@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,13 +31,18 @@ import {
   RefreshCw,
   Upload,
   QrCode,
-  Download
+  Download,
+  Settings
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminService } from "@/lib/admin";
 import { petService, uploadPetPhoto } from "@/lib/pets";
+import { subscriptionPlansService, type SubscriptionPlan } from "@/lib/subscriptionPlans";
 import type { Pet, User } from "@/lib/supabase";
+import { toast } from "sonner";
+import SubscriptionPlansManagement from "./SubscriptionPlansManagement";
+import PlanSelectionDialog from "./PlanSelectionDialog";
 
 // Extended Pet type for admin dashboard with owner info
 interface PetWithOwner extends Pet {
@@ -52,7 +56,6 @@ interface PetWithOwner extends Pet {
     address?: string
   }
 }
-import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
@@ -63,6 +66,19 @@ const AdminDashboard = () => {
   const [editingPet, setEditingPet] = useState<PetWithOwner | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Plan selection dialog state
+  const [planSelectionDialog, setPlanSelectionDialog] = useState<{
+    open: boolean;
+    type: 'activate' | 'renew';
+    userId?: number;
+    subscriptionId?: number;
+    userInfo?: { name: string; email: string };
+  }>({
+    open: false,
+    type: 'activate'
+  });
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeSubscriptions: 0,
@@ -131,23 +147,103 @@ const AdminDashboard = () => {
     };
   });
 
+  // UPDATED: activateUser function with plan selection
   const activateUser = async (userId: number) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    setPlanSelectionDialog({
+      open: true,
+      type: 'activate',
+      userId,
+      userInfo: { name: user.name, email: user.email }
+    });
+  };
+
+  // Handle plan selection for activation
+  const handlePlanSelection = async (plan: SubscriptionPlan) => {
     try {
-      await adminService.activateUser(userId);
-      
-      // Update the users list
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === userId 
-            ? { ...user, is_active: true, email_verified: true, email_verified_at: new Date().toISOString() }
-            : user
-        )
-      );
-      
-      toast.success("User activated successfully!");
+      if (planSelectionDialog.type === 'activate' && planSelectionDialog.userId) {
+        // 1. Activate the user
+        await adminService.activateUser(planSelectionDialog.userId);
+        
+        // 2. Create subscription with selected plan
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + plan.duration_months);
+        
+        const subscriptionData = {
+          plan_type: plan.duration_months >= 12 ? 'annual' as const : 'monthly' as const,
+          amount: plan.amount,
+          start_date: today.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0],
+          payment_method: 'manual',
+          payment_reference: `MANUAL_ACTIVATION_${Date.now()}`
+        };
+        
+        await adminService.createSubscription(planSelectionDialog.userId, subscriptionData);
+        
+        // 3. Update UI
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user.id === planSelectionDialog.userId 
+              ? { 
+                  ...user, 
+                  is_active: true, 
+                  email_verified: true, 
+                  email_verified_at: new Date().toISOString() 
+                }
+              : user
+          )
+        );
+        
+        // 4. Refresh data
+        const [updatedSubscriptions, updatedExpiringSubs] = await Promise.all([
+          adminService.getAllSubscriptions(),
+          adminService.getSubscriptionsNearingExpiry()
+        ]);
+        
+        setSubscriptions(updatedSubscriptions);
+        setExpiringSubs(updatedExpiringSubs);
+        
+        setStats(prevStats => ({
+          ...prevStats,
+          activeSubscriptions: prevStats.activeSubscriptions + 1,
+          pendingActivations: Math.max(0, prevStats.pendingActivations - 1)
+        }));
+        
+        toast.success(`User activated with ${plan.name} (₹${plan.amount}) for ${plan.duration_months} months!`);
+      } else if (planSelectionDialog.type === 'renew' && planSelectionDialog.subscriptionId) {
+        // Handle subscription renewal with selected plan
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + plan.duration_months);
+        
+        const renewalData = {
+          status: 'active' as const,
+          plan_type: plan.duration_months >= 12 ? 'annual' as const : 'monthly' as const,
+          amount: plan.amount,
+          start_date: today.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0]
+        };
+        
+        const updatedSub = await adminService.updateSubscription(planSelectionDialog.subscriptionId, renewalData);
+        
+        setSubscriptions(prevSubs => 
+          prevSubs.map(sub => 
+            sub.id === planSelectionDialog.subscriptionId ? updatedSub : sub
+          )
+        );
+        
+        setExpiringSubs(prevSubs => 
+          prevSubs.filter(sub => sub.id !== planSelectionDialog.subscriptionId)
+        );
+        
+        toast.success(`Subscription renewed with ${plan.name} (₹${plan.amount}) for ${plan.duration_months} months!`);
+      }
     } catch (error) {
-      console.error("Failed to activate user:", error);
-      toast.error("Failed to activate user. Please try again.");
+      console.error('Failed to process plan selection:', error);
+      toast.error('Failed to process subscription. Please try again.');
     }
   };
 
@@ -155,12 +251,16 @@ const AdminDashboard = () => {
     try {
       await adminService.deactivateUser(userId);
       
-      // Update the users list
       setUsers(prevUsers => 
         prevUsers.map(user => 
           user.id === userId ? { ...user, is_active: false } : user
         )
       );
+      
+      setStats(prevStats => ({
+        ...prevStats,
+        pendingActivations: Math.max(0, prevStats.pendingActivations - 1)
+      }));
       
       toast.success("User deactivated successfully!");
     } catch (error) {
@@ -212,7 +312,6 @@ const AdminDashboard = () => {
       
       const updatedPet = await adminService.updatePet(editingPet.id, updates);
       
-      // Update the pets list with the updated pet
       setPets(prevPets => 
         prevPets.map(pet => 
           pet.id === editingPet.id ? updatedPet : pet
@@ -237,7 +336,6 @@ const AdminDashboard = () => {
       const newStatus = !currentStatus;
       await adminService.updatePet(petId, { is_active: newStatus });
       
-      // Update the pets list
       setPets(prevPets => 
         prevPets.map(pet => 
           pet.id === petId ? { ...pet, is_active: newStatus } : pet
@@ -255,18 +353,16 @@ const AdminDashboard = () => {
     try {
       const profileUrl = `${window.location.origin}/pet/${pet.username}`;
       
-      // Generate high-quality QR code only
       const qrCodeDataUrl = await QRCodeLib.toDataURL(profileUrl, {
-        width: 1024, // HD size
+        width: 1024,
         margin: 4,
         color: {
           dark: '#000000',
           light: '#FFFFFF',
         },
-        errorCorrectionLevel: 'H' // High error correction
+        errorCorrectionLevel: 'H'
       });
 
-      // Download the QR code directly
       const link = document.createElement('a');
       link.href = qrCodeDataUrl;
       link.download = `${pet.username}.png`;
@@ -279,49 +375,21 @@ const AdminDashboard = () => {
     }
   };
 
+  // UPDATED: handleRenewSubscription with plan selection
   const handleRenewSubscription = async (subscriptionId: number) => {
-    try {
-      const today = new Date();
-      const endDate = new Date();
-      
-      // Always renew for 1 year at ₹599
-      endDate.setFullYear(endDate.getFullYear() + 1);
-      
-      // Update subscription with new dates, active status, and standardized pricing
-      const renewalData = {
-        status: 'active' as const,
-        plan_type: 'annual' as const,
-        amount: 599,
-        start_date: today.toISOString().split('T')[0],
-        end_date: endDate.toISOString().split('T')[0]
-      };
-      
-      // Update subscription in database
-      const updatedSub = await adminService.updateSubscription(subscriptionId, renewalData);
-      
-      // Update subscriptions list
-      setSubscriptions(prevSubs => 
-        prevSubs.map(sub => 
-          sub.id === subscriptionId ? updatedSub : sub
-        )
-      );
-      
-      // Update expiring subs list
-      setExpiringSubs(prevSubs => 
-        prevSubs.filter(sub => sub.id !== subscriptionId)
-      );
-      
-      toast.success("Subscription renewed successfully for 1 year at ₹599!");
-    } catch (error) {
-      console.error("Failed to renew subscription:", error);
-      toast.error("Failed to renew subscription. Please try again.");
-    }
+    const subscription = subscriptions.find(sub => sub.id === subscriptionId);
+    if (!subscription) return;
+
+    setPlanSelectionDialog({
+      open: true,
+      type: 'renew',
+      subscriptionId,
+      userInfo: { name: subscription.users?.name || '', email: subscription.users?.email || '' }
+    });
   };
 
-  // Derive pending users from loaded data  
   const pendingUsers = users.filter(user => !user.is_active || user.email_verified === false);
 
-  // Use real pets data instead of mock data
   const filteredPets = pets.filter(pet => 
     pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     pet.users?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -343,54 +411,50 @@ const AdminDashboard = () => {
   );
 
   const PetEditModal = () => (
-    <Dialog open={!!editingPet} onOpenChange={() => setEditingPet(null)}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+    <Dialog open={!!editingPet} onOpenChange={(open) => !open && setEditingPet(null)}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Pet Profile</DialogTitle>
+          <DialogTitle>Edit Pet Details</DialogTitle>
           <DialogDescription>
-            Update {editingPet?.name}'s profile information
+            Update pet information and privacy settings
           </DialogDescription>
         </DialogHeader>
         {editingPet && (
-          <div className="space-y-4 mt-4">
-            {/* Photo Upload Section */}
-            <div className="border-b pb-4">
-              <Label>Pet Photo</Label>
-              <div className="flex items-center space-x-4 mt-2">
-                {editingPet.photo_url && (
-                  <img
-                    src={editingPet.photo_url}
-                    alt={editingPet.name}
-                    className="w-20 h-20 object-cover rounded-lg border"
-                  />
-                )}
-                <div className="flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                    id="photo-upload"
-                    disabled={uploadingPhoto}
-                  />
-                  <label htmlFor="photo-upload">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      disabled={uploadingPhoto}
-                      className="cursor-pointer"
-                      asChild
-                    >
-                      <span>
-                        {uploadingPhoto ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Upload className="w-4 h-4 mr-2" />
-                        )}
-                        {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
-                      </span>
-                    </Button>
-                  </label>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="photo">Pet Photo</Label>
+                  <div className="flex flex-col space-y-2">
+                    {editingPet.photo_url && (
+                      <div className="w-32 h-32 rounded-lg overflow-hidden border">
+                        <img 
+                          src={editingPet.photo_url} 
+                          alt={editingPet.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <label htmlFor="photo-upload">
+                      <input
+                        type="file"
+                        id="photo-upload"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                      <Button type="button" variant="outline" className="w-fit" disabled={uploadingPhoto}>
+                        <span className="flex items-center">
+                          {uploadingPhoto ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          {uploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -449,7 +513,7 @@ const AdminDashboard = () => {
             </div>
 
             <div>
-              <Label htmlFor="petColor">Color/Markings</Label>
+              <Label htmlFor="petColor">Color</Label>
               <Input
                 id="petColor"
                 value={editingPet.color}
@@ -467,9 +531,9 @@ const AdminDashboard = () => {
               />
             </div>
 
-            <div className="border-t pt-4">
-              <h4 className="font-semibold mb-3">Privacy Settings</h4>
-              <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-base font-semibold">Privacy Settings</Label>
+              <div className="grid grid-cols-2 gap-4 mt-2">
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -478,17 +542,17 @@ const AdminDashboard = () => {
                     onChange={(e) => setEditingPet({...editingPet, show_phone: e.target.checked})}
                     className="rounded"
                   />
-                  <Label htmlFor="showPhone">Show Phone Number</Label>
+                  <Label htmlFor="showPhone">Show Phone</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    id="showWhatsapp"
+                    id="showWhatsApp"
                     checked={editingPet.show_whatsapp}
                     onChange={(e) => setEditingPet({...editingPet, show_whatsapp: e.target.checked})}
                     className="rounded"
                   />
-                  <Label htmlFor="showWhatsapp">Show WhatsApp</Label>
+                  <Label htmlFor="showWhatsApp">Show WhatsApp</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <input
@@ -528,8 +592,6 @@ const AdminDashboard = () => {
     </Dialog>
   );
 
-
-
   const handleAdminLogout = async () => {
     try {
       await logout();
@@ -565,7 +627,6 @@ const AdminDashboard = () => {
             <span className="text-2xl font-bold">WhiteTag Admin</span>
           </div>
           <div className="flex items-center space-x-4">
-          
             <Button variant="ghost" className="text-white hover:bg-gray-700" onClick={handleAdminLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Logout
@@ -601,18 +662,7 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.activeSubscriptions.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">+8% from last month</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Activations</CardTitle>
-              <Calendar className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingActivations}</div>
-              <p className="text-xs text-gray-500">Requires attention</p>
+              <p className="text-xs text-gray-500">Various plans</p>
             </CardContent>
           </Card>
 
@@ -623,7 +673,7 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">+15% from last month</p>
+              <p className="text-xs text-gray-500">+5% from last month</p>
             </CardContent>
           </Card>
 
@@ -634,7 +684,18 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalPets.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">+18% from last month</p>
+              <p className="text-xs text-gray-500">All registered pets</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">QR Scans</CardTitle>
+              <Eye className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalScans.toLocaleString()}</div>
+              <p className="text-xs text-gray-500">Total profile views</p>
             </CardContent>
           </Card>
 
@@ -652,9 +713,10 @@ const AdminDashboard = () => {
 
         {/* Tabs for different admin sections */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="users">User Management</TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
+            <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
             <TabsTrigger value="pets">Pet Management</TabsTrigger>
           </TabsList>
 
@@ -808,166 +870,121 @@ const AdminDashboard = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   All Subscriptions
-                  <Badge variant="secondary">{filteredSubscriptions.length} of {subscriptions.length}</Badge>
+                  <Badge variant="secondary">{subscriptions.length}</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Complete overview of all user subscriptions
+                  Manage all user subscriptions
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center space-x-2 mb-6">
-                  <Search className="w-4 h-4 text-gray-500" />
-                  <Input
-                    placeholder="Search subscriptions by user, plan, or status..."
-                    value={subscriptionSearchTerm}
-                    onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
-                    className="max-w-sm"
-                  />
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                      placeholder="Search subscriptions..."
+                      value={subscriptionSearchTerm}
+                      onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
                 </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
-                      <TableHead>Phone</TableHead>
                       <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Amount</TableHead>
-                      <TableHead>Start Date</TableHead>
                       <TableHead>End Date</TableHead>
-                      <TableHead>Days Left</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSubscriptions.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                          {subscriptionSearchTerm ? 
-                            `No subscriptions found matching "${subscriptionSearchTerm}"` : 
-                            'No subscriptions available'
-                          }
+                    {filteredSubscriptions.map((sub) => (
+                      <TableRow key={sub.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{sub.users?.name}</p>
+                            <p className="text-sm text-gray-600">{sub.users?.email}</p>
+                            <p className="text-sm text-gray-600">{sub.users?.phone || 'No phone'}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {sub.plan_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={sub.status === 'active' ? 'default' : 'destructive'}
+                            className={sub.status === 'active' ? 'bg-green-600' : ''}
+                          >
+                            {sub.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>₹{sub.amount}</TableCell>
+                        <TableCell>
+                          <p className="text-sm">{new Date(sub.end_date).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-500">
+                            {Math.ceil((new Date(sub.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRenewSubscription(sub.id)}
+                              className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      filteredSubscriptions.map((sub) => {
-                        const daysLeft = Math.ceil((new Date(sub.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                        const isExpiringSoon = daysLeft <= 30 && daysLeft > 0;
-                        const isExpired = daysLeft <= 0;
-                        
-                        return (
-                          <TableRow key={sub.id} className={isExpiringSoon ? "bg-orange-50" : isExpired ? "bg-red-50" : ""}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{sub.users?.name || 'Unknown'}</p>
-                                <p className="text-sm text-gray-600">{sub.users?.email || 'Unknown'}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className="text-sm">{sub.users?.phone || 'Not provided'}</p>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="capitalize">
-                                {sub.plan_type}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge 
-                                variant={sub.status === 'active' ? 'default' : 'destructive'}
-                                className={
-                                  sub.status === 'active' ? 'bg-green-600' : 
-                                  sub.status === 'expired' ? 'bg-red-600' : 
-                                  'bg-gray-600'
-                                }
-                              >
-                                {sub.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <span className="font-medium">₹{sub.amount}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm">{new Date(sub.start_date).toLocaleDateString()}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm">{new Date(sub.end_date).toLocaleDateString()}</span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                {isExpired ? (
-                                  <span className="text-red-600 font-medium">Expired</span>
-                                ) : isExpiringSoon ? (
-                                  <span className="text-orange-600 font-medium">{daysLeft} days</span>
-                                ) : (
-                                  <span className="text-green-600 font-medium">{daysLeft} days</span>
-                                )}
-                                {isExpiringSoon && (
-                                  <Clock className="w-4 h-4 ml-1 text-orange-500" />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex space-x-2">
-                                {(isExpired || isExpiringSoon) && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleRenewSubscription(sub.id)}
-                                    className="bg-green-600 hover:bg-green-700"
-                                  >
-                                    Renew
-                                  </Button>
-                                )}
-                                {sub.status === 'active' && !isExpired && !isExpiringSoon && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRenewSubscription(sub.id)}
-                                    className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
-                                  >
-                                    Renew
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
           </TabsContent>
 
+          <TabsContent value="plans" className="space-y-6">
+            <SubscriptionPlansManagement onPlansUpdate={() => {
+              // Refresh data when plans are updated
+              // This ensures the plan selection dialog shows updated plans
+            }} />
+          </TabsContent>
+
           <TabsContent value="pets" className="space-y-6">
-            {/* Pet Management Section */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  All Pet Profiles
-                  <Badge variant="secondary">{pets.length} total</Badge>
+                  Pet Management
+                  <Badge variant="secondary">{pets.length}</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Manage and edit pet profiles across the platform
+                  Manage all pet profiles and QR codes
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Search */}
-                <div className="flex items-center space-x-2 mb-6">
-                  <Search className="w-4 h-4 text-gray-500" />
-                  <Input
-                    placeholder="Search pets by name, owner, or username..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
-                  />
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                      placeholder="Search pets by name, owner, or username..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
                 </div>
-
-                {/* Pets Table */}
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Pet</TableHead>
                       <TableHead>Owner</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
@@ -978,28 +995,34 @@ const AdminDashboard = () => {
                       <TableRow key={pet.id}>
                         <TableCell>
                           <div className="flex items-center space-x-3">
-                            <img
-                              src={(pet as any).photo_url || "/placeholder.svg"}
-                              alt={pet.name}
-                              className="w-10 h-10 rounded-full object-cover bg-gray-100"
-                            />
+                            {pet.photo_url && (
+                              <img 
+                                src={pet.photo_url} 
+                                alt={pet.name}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            )}
                             <div>
                               <p className="font-medium">{pet.name}</p>
-                              <p className="text-sm text-gray-600">{pet.type} • {pet.breed || 'Unknown'}</p>
-                              <p className="text-xs text-gray-500">@{pet.username}</p>
+                              <p className="text-sm text-gray-600">@{pet.username}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{(pet as any).users?.name || 'Unknown'}</p>
-                            <p className="text-sm text-gray-600">{(pet as any).users?.email || 'Unknown'}</p>
+                            <p className="font-medium">{pet.users?.name}</p>
+                            <p className="text-sm text-gray-600">{pet.users?.email}</p>
                           </div>
                         </TableCell>
                         <TableCell>
+                          <Badge variant="outline">
+                            {pet.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge 
-                            variant="default"
-                            className="bg-green-600"
+                            variant={pet.is_active ? 'default' : 'destructive'}
+                            className={pet.is_active ? 'bg-green-600' : ''}
                           >
                             {pet.is_active ? 'Active' : 'Inactive'}
                           </Badge>
@@ -1053,6 +1076,19 @@ const AdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Plan Selection Dialog */}
+      <PlanSelectionDialog
+        open={planSelectionDialog.open}
+        onClose={() => setPlanSelectionDialog({ open: false, type: 'activate' })}
+        onPlanSelect={handlePlanSelection}
+        title={planSelectionDialog.type === 'activate' ? 'Select Activation Plan' : 'Select Renewal Plan'}
+        description={planSelectionDialog.type === 'activate' 
+          ? 'Choose a subscription plan to activate this user' 
+          : 'Choose a subscription plan to renew this subscription'
+        }
+        userInfo={planSelectionDialog.userInfo}
+      />
 
       <PetEditModal />
     </div>
