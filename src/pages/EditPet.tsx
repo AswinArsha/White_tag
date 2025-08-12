@@ -6,11 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Heart, ArrowLeft, Save, Upload, User, Phone, Instagram, MapPin, Loader2 } from "lucide-react";
+import { Heart, ArrowLeft, Save, Upload, User, MessageCircle, Instagram, MapPin, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { petService, uploadPetPhoto } from "@/lib/pets";
+import { supabase } from "@/lib/supabase";
 import type { Pet } from "@/lib/supabase";
 import { toast } from "sonner";
+import imageCompression from 'browser-image-compression';
+
+// Form data interface that includes both pet and user contact fields
+interface PetFormData {
+  // Pet fields
+  name: string;
+  type: string;
+  breed: string;
+  age: string;
+  color: string;
+  description: string;
+  photo_url: string;
+  username: string;
+  // User contact fields
+  whatsapp: string;
+  address: string;
+  instagram: string;
+}
 
 const EditPet = () => {
   const { petId } = useParams();
@@ -23,8 +42,8 @@ const EditPet = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
-  // Editable form state
-  const [petData, setPetData] = useState<Partial<Pet>>({
+  // Editable form state (using separate interface)
+  const [petData, setPetData] = useState<PetFormData>({
     name: "",
     type: "Dog",
     breed: "",
@@ -32,14 +51,17 @@ const EditPet = () => {
     color: "",
     description: "",
     photo_url: "",
-    username: ""
+    username: "",
+    // Contact information from user profile
+    whatsapp: "",
+    address: "",
+    instagram: ""
   });
 
-  // Individual toggle states for better control
-  const [showPhone, setShowPhone] = useState(true);
+  // Individual toggle states for privacy settings (REMOVED showPhone as requested)
   const [showWhatsApp, setShowWhatsApp] = useState(true);
-  const [showInstagram, setShowInstagram] = useState(true);
-  const [showAddress, setShowAddress] = useState(true);
+  const [showInstagram, setShowInstagram] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
 
   // Load pet data from database
   useEffect(() => {
@@ -62,6 +84,7 @@ const EditPet = () => {
 
         setOriginalPet(pet);
         setPetData({
+          // Pet fields
           name: pet.name,
           type: pet.type,
           breed: pet.breed || "",
@@ -69,11 +92,14 @@ const EditPet = () => {
           color: pet.color || "",
           description: pet.description || "",
           photo_url: pet.photo_url || "",
-          username: pet.username
+          username: pet.username,
+          // Contact fields (now from pets table)
+          whatsapp: pet.whatsapp || "",
+          address: pet.address || "",
+          instagram: pet.instagram || ""
         });
 
-        // Set individual toggle states
-        setShowPhone(pet.show_phone);
+        // Set individual toggle states (REMOVED showPhone as requested)
         setShowWhatsApp(pet.show_whatsapp);
         setShowInstagram(pet.show_instagram);
         setShowAddress(pet.show_address);
@@ -89,13 +115,36 @@ const EditPet = () => {
     loadPetData();
   }, [petId, profile, navigate]);
 
+  const compressImage = async (file: File): Promise<File> => {
+    const options = {
+      maxSizeMB: 1, // Maximum file size in MB
+      maxWidthOrHeight: 1920, // Maximum width or height
+      useWebWorker: true,
+      initialQuality: 0.8
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      console.log('Original file size:', file.size / 1024 / 1024, 'MB');
+      console.log('Compressed file size:', compressedFile.size / 1024 / 1024, 'MB');
+      return compressedFile;
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      return file; // Return original file if compression fails
+    }
+  };
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !petData.username) return;
 
     try {
       setUploadingPhoto(true);
-      const photoUrl = await uploadPetPhoto(file, petData.username);
+      
+      // Compress the image before uploading
+      const compressedFile = await compressImage(file);
+      
+      const photoUrl = await uploadPetPhoto(compressedFile, petData.username);
       setPetData(prev => ({ ...prev, photo_url: photoUrl }));
       toast.success("Photo uploaded successfully!");
     } catch (error) {
@@ -107,7 +156,7 @@ const EditPet = () => {
   };
 
   const handleSave = async () => {
-    if (!originalPet || !petData.name || !petData.username) {
+    if (!originalPet || !petData.name || !petData.username || !profile) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -115,23 +164,30 @@ const EditPet = () => {
     setSaving(true);
     
     try {
-      // Merge the individual toggle states with the pet data
-      const updates: Partial<Pet> = {
+      // Update pet data including contact information (all in pets table now)
+      const petUpdates: Partial<Pet> = {
         name: petData.name,
-        type: petData.type as any,
+        type: petData.type as 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Other',
         breed: petData.breed,
         age: petData.age,
         color: petData.color,
         description: petData.description,
         photo_url: petData.photo_url,
         username: petData.username,
-        show_phone: showPhone,
+        // Contact information (now stored in pets table)
+        whatsapp: petData.whatsapp,
+        instagram: petData.instagram,
+        address: petData.address,
+        // Privacy settings (REMOVED show_phone as requested)
+        show_phone: false, // Always false since checkbox was removed
         show_whatsapp: showWhatsApp,
         show_instagram: showInstagram,
         show_address: showAddress
       };
       
-      await petService.updatePet(originalPet.id, updates);
+      // Update pet table with all data
+      await petService.updatePet(originalPet.id, petUpdates);
+
       toast.success("Pet information updated successfully!");
       navigate("/dashboard");
     } catch (error: any) {
@@ -142,14 +198,12 @@ const EditPet = () => {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof PetFormData, value: string) => {
     setPetData(prev => ({
       ...prev,
       [field]: value
     }));
   };
-
-  // Remove the handleOwnerChange function as it's not needed anymore
 
   if (loading) {
     return (
@@ -327,7 +381,48 @@ const EditPet = () => {
                 </div>
               </div>
 
-              {/* Privacy Settings */}
+              {/* Contact Information - AS REQUESTED */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">WhatsApp Number</Label>
+                    <Input
+                      id="whatsapp"
+                      value={petData.whatsapp}
+                      onChange={(e) => handleInputChange("whatsapp", e.target.value)}
+                      className="mt-1"
+                      placeholder="e.g., +91 9876543210"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Include country code for better connectivity</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="instagram" className="text-sm font-medium text-gray-700">Instagram Handle</Label>
+                    <Input
+                      id="instagram"
+                      value={petData.instagram}
+                      onChange={(e) => handleInputChange("instagram", e.target.value)}
+                      className="mt-1"
+                      placeholder="e.g., @petlover123"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Include @ symbol if desired</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="address" className="text-sm font-medium text-gray-700">Address</Label>
+                    <Textarea
+                      id="address"
+                      value={petData.address}
+                      onChange={(e) => handleInputChange("address", e.target.value)}
+                      className="mt-1"
+                      rows={3}
+                      placeholder="Enter your full address..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This will help people return your pet if found</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy Settings - REMOVED PHONE TOGGLE AS REQUESTED */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Privacy Settings</h3>
                 <p className="text-sm text-gray-600 mb-4">Choose what information to show publicly when someone scans your pet's QR code</p>
@@ -339,117 +434,81 @@ const EditPet = () => {
                     <h4 className="font-medium text-blue-900">Contact Information</h4>
                   </div>
                   <p className="text-sm text-blue-800 mt-1">
-                    Your contact information (name, phone, WhatsApp, Instagram, address) is managed in your profile settings. 
-                    The privacy settings below control what information is shown when someone scans your pet's QR code.
+                    The contact information you enter above will be saved for this specific pet.
+                    These privacy settings control what information is shown when someone scans your pet's QR code.
                   </p>
                 </div>
                 
-                {/* Debug info - remove this later */}
-                <div className="mb-4 p-2 bg-blue-50 rounded text-xs text-blue-800">
-                  <strong>Current Settings:</strong> 
-                  Phone: {showPhone ? "✓" : "✗"}, 
-                  WhatsApp: {showWhatsApp ? "✓" : "✗"}, 
-                  Instagram: {showInstagram ? "✓" : "✗"}, 
-                  Address: {showAddress ? "✓" : "✗"}
-                </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      <Phone className="w-5 h-5 text-gray-600" />
+                      <MessageCircle className="w-5 h-5 text-green-600" />
                       <div>
-                        <p className="font-medium text-gray-900">Show Phone Number</p>
-                        <p className="text-sm text-gray-600">Allow people to call you directly</p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={showPhone ? "default" : "outline"}
-                      onClick={() => {
-                        const newValue = !showPhone;
-                        console.log("Phone toggle clicked:", newValue);
-                        setShowPhone(newValue);
-                      }}
-                      className={`w-16 ${showPhone ? 'bg-green-600 hover:bg-green-700' : 'border-gray-300'}`}
-                    >
-                      {showPhone ? "ON" : "OFF"}
-                    </Button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Phone className="w-5 h-5 text-green-600" />
-                      <div>
-                        <p className="font-medium text-gray-900">Show WhatsApp</p>
-                        <p className="text-sm text-gray-600">Allow WhatsApp messaging</p>
+                        <p className="font-medium text-gray-900">Show WhatsApp Number</p>
+                        <p className="text-sm text-gray-600">Allow people to contact you via WhatsApp</p>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       variant={showWhatsApp ? "default" : "outline"}
-                      onClick={() => {
-                        const newValue = !showWhatsApp;
-                        console.log("WhatsApp toggle clicked:", newValue);
-                        setShowWhatsApp(newValue);
-                      }}
-                      className={`w-16 ${showWhatsApp ? 'bg-green-600 hover:bg-green-700' : 'border-gray-300'}`}
+                      onClick={() => setShowWhatsApp(!showWhatsApp)}
+                      className="min-w-[60px]"
                     >
-                      {showWhatsApp ? "ON" : "OFF"}
+                      {showWhatsApp ? "On" : "Off"}
                     </Button>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
-                      <Instagram className="w-5 h-5 text-purple-600" />
+                      <Instagram className="w-5 h-5 text-pink-600" />
                       <div>
-                        <p className="font-medium text-gray-900">Show Instagram</p>
-                        <p className="text-sm text-gray-600">Display your Instagram handle</p>
+                        <p className="font-medium text-gray-900">Show Instagram Handle</p>
+                        <p className="text-sm text-gray-600">Share your Instagram profile</p>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       variant={showInstagram ? "default" : "outline"}
-                      onClick={() => {
-                        const newValue = !showInstagram;
-                        console.log("Instagram toggle clicked:", newValue);
-                        setShowInstagram(newValue);
-                      }}
-                      className={`w-16 ${showInstagram ? 'bg-green-600 hover:bg-green-700' : 'border-gray-300'}`}
+                      onClick={() => setShowInstagram(!showInstagram)}
+                      className="min-w-[60px]"
                     >
-                      {showInstagram ? "ON" : "OFF"}
+                      {showInstagram ? "On" : "Off"}
                     </Button>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <MapPin className="w-5 h-5 text-red-600" />
                       <div>
                         <p className="font-medium text-gray-900">Show Address</p>
-                        <p className="text-sm text-gray-600">Display your full address</p>
+                        <p className="text-sm text-gray-600">Display your address to help return your pet</p>
                       </div>
                     </div>
                     <Button
                       size="sm"
                       variant={showAddress ? "default" : "outline"}
-                      onClick={() => {
-                        const newValue = !showAddress;
-                        console.log("Address toggle clicked:", newValue);
-                        setShowAddress(newValue);
-                      }}
-                      className={`w-16 ${showAddress ? 'bg-green-600 hover:bg-green-700' : 'border-gray-300'}`}
+                      onClick={() => setShowAddress(!showAddress)}
+                      className="min-w-[60px]"
                     >
-                      {showAddress ? "ON" : "OFF"}
+                      {showAddress ? "On" : "Off"}
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="border-t pt-6 flex flex-col sm:flex-row gap-3">
+              {/* Save Button */}
+              <div className="border-t pt-6 flex justify-end space-x-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate("/dashboard")}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
                 <Button 
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-                  size="lg"
+                  className="min-w-[120px]"
                 >
                   {saving ? (
                     <>
@@ -463,15 +522,6 @@ const EditPet = () => {
                     </>
                   )}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => navigate("/dashboard")}
-                  disabled={saving}
-                  className="flex-1 border-gray-300 disabled:opacity-50"
-                  size="lg"
-                >
-                  Cancel
-                </Button>
               </div>
             </div>
           </CardContent>
@@ -481,4 +531,4 @@ const EditPet = () => {
   );
 };
 
-export default EditPet; 
+export default EditPet;

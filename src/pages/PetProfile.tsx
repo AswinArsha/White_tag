@@ -100,7 +100,8 @@ const PetProfile = () => {
   };
 
   const shareLocationViaWhatsApp = async () => {
-    if (!pet?.users?.whatsapp) {
+    // Updated: Use pet.whatsapp instead of pet.users.whatsapp
+    if (!pet?.whatsapp) {
       toast.error('WhatsApp contact not available');
       return;
     }
@@ -110,7 +111,8 @@ const PetProfile = () => {
     if (location) {
       try {
         const message = `Found ${pet.name}! 🐾📍 Here's my location: https://maps.google.com/?q=${location.lat},${location.lng}`;
-        const whatsappUrl = `https://wa.me/${pet.users.whatsapp.replace(/\s+/g, '').replace('+', '')}?text=${encodeURIComponent(message)}`;
+        // Updated: Use pet.whatsapp instead of pet.users.whatsapp
+        const whatsappUrl = `https://wa.me/${pet.whatsapp.replace(/\s+/g, '').replace('+', '')}?text=${encodeURIComponent(message)}`;
         
         // Record WhatsApp share in database
         // Note: We'd need to track the scan ID for this, simplified for now
@@ -201,12 +203,9 @@ END:VCARD`;
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">WhiteTag</h1>
-              
             </div>
           </div>
         </div>
-
-    
 
         {/* Pet Profile Card */}
         <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden mb-6">
@@ -281,57 +280,47 @@ END:VCARD`;
         <h3 className="text-2xl font-bold text-white mb-1 drop-shadow-lg">
           Found {pet.name}?
         </h3>
-        <p className="text-white/90 text-sm font-medium">Share your location instantly</p>
+        <p className="text-white/90 text-sm font-medium drop-shadow">
+          Share your location instantly!
+        </p>
       </div>
-      <div className="relative">
-        {/* Pulsing ring around icon */}
-        <div className="absolute inset-0 bg-white/20 rounded-full animate-ping"></div>
-        <div className="relative bg-white/20 backdrop-blur-sm rounded-full p-3 border border-white/30">
-          <MapPin className="w-8 h-8 text-white" />
-        </div>
+      <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3">
+        <MapPin className="w-8 h-8 text-white drop-shadow-lg" />
       </div>
     </div>
 
-    {/* Enhanced button with multiple effects */}
-    <button
+    <Button
       onClick={shareLocationViaWhatsApp}
-      className="relative w-full group/btn overflow-hidden  transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl active:scale-[0.98]"
+      disabled={scanLoading}
+      className="w-full h-14 bg-white/95 hover:bg-white text-gray-900 font-bold text-lg rounded-2xl shadow-xl border-0 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
     >
-   
-    
-    
-      {/* Content */}
-      <div className="relative py-5 px-6 border-white border-2 rounded-xl">
-        <span className="text-white font-bold text-lg tracking-wide drop-shadow-sm">
-          Share Location 
-        </span>
-      </div>
-    </button>
+      {scanLoading ? (
+        <>
+          <Loader2 className="w-6 h-6 mr-3 animate-spin" />
+          Getting Location...
+        </>
+      ) : (
+        <>
+          <MessageCircle className="w-6 h-6 mr-3 text-green-600" />
+          Share
+        </>
+      )}
+    </Button>
 
-    {locationAccuracy && (
-      <div className="flex justify-center mt-4">
-        <div className="flex items-center space-x-2 px-4 py-2 bg-white/15 backdrop-blur-md rounded-full border border-white/20">
-          <div className="relative">
-            <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-            <div className="absolute inset-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
-          </div>
-          <p className="text-white/95 text-xs font-medium">
-            Location accuracy: ±{Math.round(locationAccuracy)}m
-          </p>
-        </div>
-      </div>
+    {location && locationAccuracy && (
+      <p className="text-white/80 text-xs mt-3 text-center drop-shadow">
+        📍 Location accuracy: ±{Math.round(locationAccuracy)}m
+      </p>
     )}
   </div>
-
-  {/* Border glow effect */}
-  <div className="absolute inset-0 rounded-3xl border border-white/20 shadow-xl"></div>
 </div>
 
-        {/* Owner Contact */}
-        <Card className="bg-white border-0 shadow-lg rounded-2xl">
+        {/* Contact Owner Card */}
+        <Card className="bg-white border-0 shadow-lg rounded-2xl overflow-hidden mb-6">
           <CardContent className="p-6">
+            {/* Owner Avatar & Info */}
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-lg font-bold text-white">
                   {pet.users?.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                 </span>
@@ -354,11 +343,12 @@ END:VCARD`;
                 </Button>
               )}
 
-              {pet.show_whatsapp && pet.users?.whatsapp && (
+              {/* Updated: Use pet.whatsapp instead of pet.users.whatsapp */}
+              {pet.show_whatsapp && pet.whatsapp && (
                 <Button
                   variant="outline"
                   className="w-full h-12 border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-medium rounded-lg group"
-                  onClick={() => window.open(`https://wa.me/${pet.users.whatsapp?.replace(/\s+/g, '').replace('+', '')}`)}
+                  onClick={() => window.open(`https://wa.me/${pet.whatsapp?.replace(/\s+/g, '').replace('+', '')}`)}
                 >
                   <MessageCircle className="w-5 h-5 mr-3 text-green-600" />
                   <span className="flex-1 text-left">WhatsApp</span>
@@ -366,11 +356,12 @@ END:VCARD`;
                 </Button>
               )}
 
-              {pet.show_instagram && pet.users?.instagram && (
+              {/* Updated: Use pet.instagram instead of pet.users.instagram */}
+              {pet.show_instagram && pet.instagram && (
                 <Button
                   variant="outline"
                   className="w-full h-12 border-2 border-gray-200 hover:bg-gray-50 text-gray-900 font-medium rounded-lg group"
-                  onClick={() => window.open(`https://instagram.com/${pet.users.instagram.replace('@', '')}`)}
+                  onClick={() => window.open(`https://instagram.com/${pet.instagram.replace('@', '')}`)}
                 >
                   <Instagram className="w-5 h-5 mr-3 text-pink-600" />
                   <span className="flex-1 text-left">Instagram</span>
@@ -389,14 +380,13 @@ END:VCARD`;
               </Button>
             </div>
 
-            {/* Address */}
-            {pet.show_address && pet.users?.address && (
+            {/* Address - Updated: Use pet.address instead of pet.users.address */}
+            {pet.show_address && pet.address && (
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                 <div className="flex items-start space-x-3">
-                 
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 mb-1 text-sm">Address</p>
-                    <p className="text-gray-600 text-sm leading-relaxed">{pet.users.address}</p>
+                    <p className="text-gray-600 text-sm leading-relaxed">{pet.address}</p>
                   </div>
                 </div>
               </div>
@@ -404,12 +394,12 @@ END:VCARD`;
           </CardContent>
         </Card>
 
-                 {/* Footer */}
-         <div className="text-center mt-8 pb-8">
-           <p className="text-gray-500 text-xs">
-             Powered by <span className="font-medium">WhiteTag</span>
-           </p>
-         </div>
+        {/* Footer */}
+        <div className="text-center mt-8 pb-8">
+          <p className="text-gray-500 text-xs">
+            Powered by <span className="font-medium">WhiteTag</span>
+          </p>
+        </div>
       </div>
     </div>
   );

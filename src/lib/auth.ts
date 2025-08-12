@@ -58,44 +58,78 @@ export const authService = {
   },
 
   // Login user (using our custom auth system)
-  async login(email: string, password: string) {
-    try {
-      // Get user from our custom users table
-      const { data: user, error } = await supabase
+ async login(email: string, password: string) {
+  try {
+    // First, let's check if any users exist with this email (for debugging)
+    const { data: allUsersWithEmail, error: checkError } = await supabase
+      .from('users')
+      .select('id, email, is_active')
+      .eq('email', email)
+
+    if (checkError) {
+      console.error('Error checking users:', checkError)
+      throw new Error('Database error occurred')
+    }
+
+    console.log('Users found with email:', allUsersWithEmail)
+
+    // Now check for active user specifically
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('is_active', true)
+
+    if (error) {
+      console.error('Database error:', error)
+      throw new Error('Database error occurred')
+    }
+
+    // Handle different scenarios
+    if (!users || users.length === 0) {
+      // Check if user exists but is inactive
+      const { data: inactiveUser } = await supabase
         .from('users')
-        .select('*')
+        .select('id, is_active')
         .eq('email', email)
-        .eq('is_active', true)
-        .single()
+        .limit(1)
 
-      if (error) throw error
-
-      if (!user) {
+      if (inactiveUser && inactiveUser.length > 0) {
+        throw new Error('Your account is pending approval. Please contact support.')
+      } else {
         // Check if this might be an admin trying to login on wrong page
         if (email.includes('admin')) {
           throw new Error('Admin accounts must login at /admin/login page')
         }
-        throw new Error('User not found')
+        throw new Error('No account found with this email address')
       }
-
-      // Verify password against stored hash
-      const isPasswordValid = await passwordService.verify(password, user.password_hash)
-      
-      if (!isPasswordValid) {
-        throw new Error('Invalid login credentials')
-      }
-
-      // Store user session in localStorage
-      localStorage.setItem('whitetag_user_id', user.id.toString())
-      
-      // For our custom auth, we don't use Supabase Auth
-      // We'll just return the user profile
-      return { user: null, profile: user }
-    } catch (error) {
-      console.error('Login error:', error)
-      throw error
     }
-  },
+
+    if (users.length > 1) {
+      console.error('Multiple users found with email:', email, users)
+      throw new Error('Multiple accounts detected. Please contact support.')
+    }
+
+    const user = users[0]
+
+    // Verify password against stored hash
+    const isPasswordValid = await passwordService.verify(password, user.password_hash)
+    
+    if (!isPasswordValid) {
+      throw new Error('Invalid login credentials')
+    }
+
+    // Store user session in localStorage
+    localStorage.setItem('whitetag_user_id', user.id.toString())
+    
+    // For our custom auth, we don't use Supabase Auth
+    // We'll just return the user profile
+    return { user: null, profile: user }
+  } catch (error) {
+    console.error('Login error:', error)
+    throw error
+  }
+},
 
   // Admin login
   async adminLogin(email: string, password: string) {

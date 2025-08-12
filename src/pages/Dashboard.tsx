@@ -102,14 +102,11 @@ const Dashboard = () => {
             <span className="text-sm text-gray-600">
               {profile?.name}
             </span>
-            <Button variant="ghost" size="sm" className="text-gray-600">
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Button>
+        
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-gray-600"
+              className="bg-red-500 text-white hover:bg-red-600"
               onClick={handleLogout}
             >
               Logout

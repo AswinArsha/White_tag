@@ -52,53 +52,50 @@ export const petService = {
   },
 
   // Get single pet by username
-  async getPetByUsername(username: string) {
-    try {
-      const { data, error } = await supabase
-        .from('pets')
-        .select(`
-          *,
-          users (
-            id,
-            name,
-            phone,
-            whatsapp,
-            instagram,
-            address,
-            is_active,
-            subscriptions (
-              status,
-              end_date
-            )
+ async getPetByUsername(username: string) {
+  try {
+    const { data, error } = await supabase
+      .from('pets')
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          phone,
+          is_active,
+          subscriptions (
+            status,
+            end_date
           )
-        `)
-        .eq('username', username)
-        .eq('is_active', true)
-        .single()
+        )
+      `)
+      .eq('username', username)
+      .eq('is_active', true)
+      .single()
 
-      if (error) throw error
+    if (error) throw error
 
-      // Check if user is active and has valid subscription
-      if (!data.users?.is_active) {
-        throw new Error('User account is inactive')
-      }
-
-      // Check if user has active subscription
-      const activeSubscription = data.users.subscriptions?.find(sub => 
-        sub.status === 'active' && new Date(sub.end_date) > new Date()
-      )
-
-      if (!activeSubscription) {
-        throw new Error('User subscription has expired')
-      }
-
-      return data
-    } catch (error) {
-      console.error('Get pet by username error:', error)
-      throw error
+    // Check if user is active and has valid subscription
+    if (!data.users?.is_active) {
+      throw new Error('User account is inactive')
     }
-  },
 
+    // Check if user has active subscription
+    const activeSubscription = data.users.subscriptions?.find(sub => 
+      sub.status === 'active' && new Date(sub.end_date) > new Date()
+    )
+
+    if (!activeSubscription) {
+      throw new Error('User subscription has expired')
+    }
+
+    return data
+  } catch (error) {
+    console.error('Get pet by username error:', error)
+    throw error
+  }
+}
+,
   // Get single pet by ID
   async getPetById(petId: number) {
     try {
@@ -129,53 +126,63 @@ export const petService = {
   },
 
   // Create new pet
-  async createPet(userId: number, petData: {
-    name: string
-    username: string
-    type: 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Other'
-    breed?: string
-    age?: string
-    color?: string
-    description?: string
-    photo_url?: string
-    show_phone?: boolean
-    show_whatsapp?: boolean
-    show_instagram?: boolean
-    show_address?: boolean
-  }) {
-    try {
-      const { data, error } = await supabase
-        .from('pets')
-        .insert([{
-          user_id: userId,
-          name: petData.name,
-          username: petData.username,
-          type: petData.type,
-          breed: petData.breed,
-          age: petData.age,
-          color: petData.color,
-          description: petData.description,
-          photo_url: petData.photo_url,
-          show_phone: petData.show_phone ?? true,
-          show_whatsapp: petData.show_whatsapp ?? true,
-          show_instagram: petData.show_instagram ?? true,
-          show_address: petData.show_address ?? false,
-          qr_code_generated: false,
-          total_scans: 0,
-          is_active: true,
-          is_lost: false
-        }])
-        .select()
-        .single()
+async createPet(userId: number, petData: {
+  name: string
+  username: string
+  type: 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Other'
+  breed?: string
+  age?: string
+  color?: string
+  description?: string
+  photo_url?: string
+  // Contact information fields (newly added)
+  whatsapp?: string
+  instagram?: string
+  address?: string
+  // Privacy settings
+  show_phone?: boolean
+  show_whatsapp?: boolean
+  show_instagram?: boolean
+  show_address?: boolean
+}) {
+  try {
+    const { data, error } = await supabase
+      .from('pets')
+      .insert([{
+        user_id: userId,
+        name: petData.name,
+        username: petData.username,
+        type: petData.type,
+        breed: petData.breed,
+        age: petData.age,
+        color: petData.color,
+        description: petData.description,
+        photo_url: petData.photo_url,
+        // Contact information (now stored in pets table)
+        whatsapp: petData.whatsapp,
+        instagram: petData.instagram,
+        address: petData.address,
+        // Privacy settings
+        show_phone: petData.show_phone ?? false, // Default false since checkbox removed
+        show_whatsapp: petData.show_whatsapp ?? true,
+        show_instagram: petData.show_instagram ?? false,
+        show_address: petData.show_address ?? false,
+        qr_code_generated: false,
+        total_scans: 0,
+        is_active: true,
+        is_lost: false
+      }])
+      .select()
+      .single()
 
-      if (error) throw error
+    if (error) throw error
 
-      return data
-    } catch (error) {
-      console.error('Create pet error:', error)
-      throw error
-    }
-  },
+    return data
+  } catch (error) {
+    console.error('Create pet error:', error)
+    throw error
+  }
+},
 
   // Update pet
   async updatePet(petId: number, updates: Partial<Pet>) {

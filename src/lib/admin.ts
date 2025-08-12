@@ -61,6 +61,7 @@ export const adminService = {
     }
   },
 
+
   // Get all users with pagination
   async getAllUsers(limit: number = 50, offset: number = 0) {
     try {
@@ -633,6 +634,256 @@ export const adminService = {
     }
   },
 
+  // Create subscription with plan
+  async createSubscriptionWithPlan(userId: number, planId: number, subscriptionData?: {
+    payment_method?: string
+    payment_reference?: string
+    start_date?: string
+  }) {
+    try {
+      // Get the plan details
+      const { data: plan, error: planError } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .eq('id', planId)
+        .single()
+
+      if (planError) throw planError
+
+      const today = new Date()
+      const startDate = subscriptionData?.start_date || today.toISOString().split('T')[0]
+      const endDate = new Date(startDate)
+      endDate.setMonth(endDate.getMonth() + plan.duration_months)
+
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .insert([{
+          user_id: userId,
+          plan_id: planId,
+          plan_type: plan.duration_months === 12 ? 'annual' : 'monthly',
+          status: 'active',
+          amount: plan.amount,
+          currency: plan.currency,
+          start_date: startDate,
+          end_date: endDate.toISOString().split('T')[0],
+          payment_method: subscriptionData?.payment_method || 'manual',
+          payment_reference: subscriptionData?.payment_reference || `MANUAL_ACTIVATION_${Date.now()}`
+        }])
+        .select(`
+          *,
+          subscription_plans (
+            name,
+            description,
+            duration_months,
+            features
+          ),
+          users (
+            id,
+            name,
+            email,
+            phone,
+            whatsapp,
+            is_active
+          )
+        `)
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Create subscription with plan error:', error)
+      throw error
+    }
+  },
+
+// Enhanced renewSubscriptionWithPlan method
+async renewSubscriptionWithPlan(subscriptionId: number, planId: number) {
+  try {
+    // Get the plan details
+    const { data: plan, error: planError } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('id', planId)
+      .eq('is_active', true)
+      .single()
+
+    if (planError) throw planError
+    if (!plan) throw new Error('Plan not found or inactive')
+
+    // Calculate new dates
+    const today = new Date()
+    const endDate = new Date()
+    endDate.setMonth(endDate.getMonth() + plan.duration_months)
+
+    // Update subscription
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .update({
+        status: 'active',
+        plan_type: plan.duration_months >= 12 ? 'annual' : 'monthly',
+        amount: plan.amount,
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', subscriptionId)
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email,
+          phone,
+          whatsapp,
+          is_active
+        )
+      `)
+      .single()
+
+    if (error) throw error
+
+    return data
+  } catch (error) {
+    console.error('Renew subscription with plan error:', error)
+    throw error
+  }
+},
+
+  // Create new subscription plan
+  async createSubscriptionPlan(planData: {
+    name: string
+    description?: string
+    duration_months: number
+    amount: number
+    features?: string[]
+    is_default?: boolean
+    sort_order?: number
+  }) {
+    try {
+      // If this plan is set as default, unset other defaults first
+      if (planData.is_default) {
+        await supabase
+          .from('subscription_plans')
+          .update({ is_default: false })
+          .eq('is_default', true)
+      }
+
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .insert([{
+          name: planData.name,
+          description: planData.description,
+          duration_months: planData.duration_months,
+          amount: planData.amount,
+          features: planData.features || [],
+          is_default: planData.is_default || false,
+          sort_order: planData.sort_order || 0,
+          is_active: true
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Create subscription plan error:', error)
+      throw error
+    }
+  },
+
+  // Update subscription plan
+  async updateSubscriptionPlan(planId: number, updates: {
+    name?: string
+    description?: string
+    duration_months?: number
+    amount?: number
+    features?: string[]
+    is_default?: boolean
+    is_active?: boolean
+    sort_order?: number
+  }) {
+    try {
+      // If this plan is set as default, unset other defaults first
+      if (updates.is_default) {
+        await supabase
+          .from('subscription_plans')
+          .update({ is_default: false })
+          .eq('is_default', true)
+          .neq('id', planId)
+      }
+
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .update(updates)
+        .eq('id', planId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Update subscription plan error:', error)
+      throw error
+    }
+  },
+
+  // Delete subscription plan (soft delete - set inactive)
+  async deleteSubscriptionPlan(planId: number) {
+    try {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .update({ is_active: false })
+        .eq('id', planId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Delete subscription plan error:', error)
+      throw error
+    }
+  },
+
+
+
+  // Get subscription with plan details
+  async getAllSubscriptionsWithPlans() {
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select(`
+          *,
+          subscription_plans (
+            id,
+            name,
+            description,
+            duration_months,
+            features
+          ),
+          users (
+            id,
+            name,
+            email,
+            phone,
+            whatsapp,
+            is_active
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      return data || []
+    } catch (error) {
+      console.error('Get subscriptions with plans error:', error)
+      throw error
+    }
+  },
   // Get users with subscription status
   async getUsersWithSubscriptions() {
     try {
