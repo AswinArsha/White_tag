@@ -60,20 +60,7 @@ export const authService = {
   // Login user (using our custom auth system)
  async login(email: string, password: string) {
   try {
-    // First, let's check if any users exist with this email (for debugging)
-    const { data: allUsersWithEmail, error: checkError } = await supabase
-      .from('users')
-      .select('id, email, is_active')
-      .eq('email', email)
-
-    if (checkError) {
-      console.error('Error checking users:', checkError)
-      throw new Error('Database error occurred')
-    }
-
-    console.log('Users found with email:', allUsersWithEmail)
-
-    // Now check for active user specifically
+    // Get user from our custom users table
     const { data: users, error } = await supabase
       .from('users')
       .select('*')
@@ -82,7 +69,7 @@ export const authService = {
 
     if (error) {
       console.error('Database error:', error)
-      throw new Error('Database error occurred')
+      throw new Error('Unable to connect to the service. Please try again later.')
     }
 
     // Handle different scenarios
@@ -95,19 +82,19 @@ export const authService = {
         .limit(1)
 
       if (inactiveUser && inactiveUser.length > 0) {
-        throw new Error('Your account is pending approval. Please contact support.')
+        throw new Error('Your account is currently inactive. Please contact support for assistance.')
       } else {
         // Check if this might be an admin trying to login on wrong page
         if (email.includes('admin')) {
-          throw new Error('Admin accounts must login at /admin/login page')
+          throw new Error('')
         }
-        throw new Error('No account found with this email address')
+        throw new Error('No account found with this email address. Please check your email or sign up for a new account.')
       }
     }
 
     if (users.length > 1) {
-      console.error('Multiple users found with email:', email, users)
-      throw new Error('Multiple accounts detected. Please contact support.')
+      console.error('Multiple accounts found:', email)
+      throw new Error('We found multiple accounts with this email. Please contact support for assistance.')
     }
 
     const user = users[0]
@@ -116,14 +103,12 @@ export const authService = {
     const isPasswordValid = await passwordService.verify(password, user.password_hash)
     
     if (!isPasswordValid) {
-      throw new Error('Invalid login credentials')
+      throw new Error('Incorrect password. Please try again or reset your password.')
     }
 
     // Store user session in localStorage
     localStorage.setItem('whitetag_user_id', user.id.toString())
     
-    // For our custom auth, we don't use Supabase Auth
-    // We'll just return the user profile
     return { user: null, profile: user }
   } catch (error) {
     console.error('Login error:', error)
@@ -142,17 +127,36 @@ export const authService = {
         .eq('is_active', true)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Database error:', error)
+        throw new Error('No admin account found with this email address. Please verify your credentials.')
+      }
 
       if (!admin) {
-        throw new Error('Admin not found')
+        // Check if admin exists but is inactive
+        const { data: inactiveAdmin } = await supabase
+          .from('admins')
+          .select('id, is_active')
+          .eq('email', email)
+          .single()
+
+        if (inactiveAdmin) {
+          throw new Error('This admin account has been deactivated. Please contact the system administrator.')
+        }
+
+        // Check if this might be a regular user
+        if (!email.includes('admin')) {
+          throw new Error('This appears to be a regular user account. Please use the standard login page.')
+        }
+
+        throw new Error('No admin account found with this email address. Please verify your credentials.')
       }
 
       // Verify password against stored hash
       const isPasswordValid = await passwordService.verify(password, admin.password_hash)
       
       if (!isPasswordValid) {
-        throw new Error('Invalid admin credentials')
+        throw new Error('Incorrect admin password. Please check your credentials and try again.')
       }
 
       // Update last login
@@ -296,4 +300,4 @@ export const authService = {
       throw error
     }
   }
-} 
+}
