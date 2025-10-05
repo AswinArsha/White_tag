@@ -7,7 +7,7 @@ const Terms = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+      <header className="border-b bg-white sticky top-0 z-50 shadow-xs">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -41,7 +41,7 @@ const Terms = () => {
         </div>
 
         {/* Terms Overview */}
-        <Card className="mb-8 border border-gray-200 shadow-sm">
+        <Card className="mb-8 border border-gray-200 shadow-xs">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-xl">
               <FileText className="w-5 h-5 text-blue-600" />
@@ -80,7 +80,7 @@ const Terms = () => {
 
         {/* Terms Sections */}
         <div className="space-y-8">
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>1. Acceptance of Terms</CardTitle>
             </CardHeader>
@@ -96,7 +96,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>2. Service Description</CardTitle>
             </CardHeader>
@@ -114,7 +114,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>3. User Accounts & Registration</CardTitle>
             </CardHeader>
@@ -141,7 +141,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>4. Subscription & Payment</CardTitle>
             </CardHeader>
@@ -178,7 +178,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>5. Acceptable Use</CardTitle>
             </CardHeader>
@@ -206,14 +206,14 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>6. Limitation of Liability</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-semibold text-yellow-900 mb-1">Important Disclaimer</h4>
                     <p className="text-yellow-800 text-sm">
@@ -246,7 +246,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>7. Data Protection & Privacy</CardTitle>
             </CardHeader>
@@ -270,7 +270,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>8. Termination</CardTitle>
             </CardHeader>
@@ -298,7 +298,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>9. Changes to Terms</CardTitle>
             </CardHeader>
@@ -318,7 +318,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>10. Indian Law Compliance</CardTitle>
             </CardHeader>
@@ -355,7 +355,7 @@ const Terms = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>11. Contact Information</CardTitle>
             </CardHeader>

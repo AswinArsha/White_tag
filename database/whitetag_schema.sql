@@ -1,270 +1,447 @@
--- WhiteTag Pet Tracking App Database Schema (PostgreSQL/Supabase)
--- Created: 2024
--- Description: Complete database schema for pet ID tag and recovery system
+create table public.admins (
+  id serial not null,
+  email character varying(255) not null,
+  password_hash character varying(255) not null,
+  name character varying(100) not null,
+  role character varying(20) null default 'admin'::character varying,
+  permissions jsonb null,
+  is_active boolean null default true,
+  last_login timestamp with time zone null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint admins_pkey primary key (id),
+  constraint admins_email_key unique (email),
+  constraint admins_role_check check (
+    (
+      (role)::text = any (
+        array[
+          ('super_admin'::character varying)::text,
+          ('admin'::character varying)::text,
+          ('support'::character varying)::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
--- Drop existing tables if they exist (for clean setup)
-DROP TABLE IF EXISTS qr_scans CASCADE;
-DROP TABLE IF EXISTS support_tickets CASCADE;
-DROP TABLE IF EXISTS pets CASCADE;
-DROP TABLE IF EXISTS subscriptions CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS admins CASCADE;
+create index IF not exists idx_admins_active on public.admins using btree (is_active) TABLESPACE pg_default;
 
--- ================================
--- USERS TABLE
--- ================================
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20),
-    whatsapp VARCHAR(20),
-    instagram VARCHAR(50),
-    address TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    is_demo BOOLEAN DEFAULT FALSE,
-    email_verified BOOLEAN DEFAULT FALSE,
-    email_verified_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+create index IF not exists idx_admins_email on public.admins using btree (email) TABLESPACE pg_default;
 
--- Create indexes for users table
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_active ON users(is_active);
+create index IF not exists idx_admins_role on public.admins using btree (role) TABLESPACE pg_default;
 
--- Create trigger for updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+create trigger update_admins_updated_at BEFORE
+update on admins for EACH row
+execute FUNCTION update_updated_at_column ();
+,
+create table public.pet_images (
+  id serial not null,
+  pet_id integer not null,
+  original_filename character varying(255) null,
+  compressed_filename character varying(255) null,
+  original_size_mb numeric(10, 2) null,
+  compressed_size_mb numeric(10, 2) null,
+  compression_ratio numeric(5, 2) null,
+  storage_url character varying(500) null,
+  created_at timestamp with time zone null default now(),
+  constraint pet_images_pkey primary key (id),
+  constraint pet_images_pet_id_fkey foreign KEY (pet_id) references pets (id) on delete CASCADE
+) TABLESPACE pg_default;
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create index IF not exists idx_pet_images_pet_id on public.pet_images using btree (pet_id) TABLESPACE pg_default;
+,
+create table public.pets (
+  id serial not null,
+  user_id integer not null,
+  name character varying(100) not null,
+  username character varying(50) not null,
+  type character varying(20) not null,
+  breed character varying(100) null,
+  age character varying(20) null,
+  color text null,
+  description text null,
+  photo_url character varying(500) null,
+  show_phone boolean null default true,
+  show_whatsapp boolean null default true,
+  show_instagram boolean null default true,
+  show_address boolean null default false,
+  qr_code_generated boolean null default false,
+  qr_code_url character varying(500) null,
+  total_scans integer null default 0,
+  last_scanned_at timestamp with time zone null,
+  is_active boolean null default true,
+  is_lost boolean null default false,
+  lost_date timestamp with time zone null,
+  found_date timestamp with time zone null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  whatsapp character varying(20) null,
+  instagram character varying(50) null,
+  address text null,
+  constraint pets_pkey primary key (id),
+  constraint pets_username_key unique (username),
+  constraint pets_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE,
+  constraint check_pets_whatsapp_format check (
+    (
+      (whatsapp is null)
+      or ((whatsapp)::text ~ '^\+?[1-9]\d{1,14}$'::text)
+    )
+  ),
+  constraint check_username_format check (
+    ((username)::text ~ '^[a-zA-Z0-9_-]{3,50}$'::text)
+  ),
+  constraint check_pets_instagram_format check (
+    (
+      (instagram is null)
+      or (
+        (instagram)::text ~ '^@?[a-zA-Z0-9._]{1,30}$'::text
+      )
+    )
+  ),
+  constraint pets_type_check check (
+    (
+      (type)::text = any (
+        array[
+          ('Dog'::character varying)::text,
+          ('Cat'::character varying)::text,
+          ('Bird'::character varying)::text,
+          ('Rabbit'::character varying)::text,
+          ('Other'::character varying)::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
--- ================================
--- SUBSCRIPTIONS TABLE
--- ================================
-CREATE TABLE subscriptions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plan_type VARCHAR(20) DEFAULT 'annual' CHECK (plan_type IN ('annual', 'monthly')),
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('active', 'expired', 'cancelled', 'pending')),
-    amount NUMERIC(10,2) NOT NULL DEFAULT 599.00,
-    currency VARCHAR(3) DEFAULT 'INR',
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    payment_method VARCHAR(50),
-    payment_reference VARCHAR(100),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+create index IF not exists idx_pets_active on public.pets using btree (is_active) TABLESPACE pg_default;
 
--- Create indexes for subscriptions table
-CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX idx_subscriptions_end_date ON subscriptions(end_date);
+create index IF not exists idx_pets_lost on public.pets using btree (is_lost) TABLESPACE pg_default;
 
--- Create trigger for updated_at
-CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create index IF not exists idx_pets_type on public.pets using btree (type) TABLESPACE pg_default;
 
--- ================================
--- PETS TABLE
--- ================================
-CREATE TABLE pets (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('Dog', 'Cat', 'Bird', 'Rabbit', 'Other')),
-    breed VARCHAR(100),
-    age VARCHAR(20),
-    color TEXT,
-    description TEXT,
-    photo_url VARCHAR(500),
-    
-    -- Privacy Settings
-    show_phone BOOLEAN DEFAULT TRUE,
-    show_whatsapp BOOLEAN DEFAULT TRUE,
-    show_instagram BOOLEAN DEFAULT TRUE,
-    show_address BOOLEAN DEFAULT FALSE,
-    
-    -- QR Code & Analytics
-    qr_code_generated BOOLEAN DEFAULT FALSE,
-    qr_code_url VARCHAR(500),
-    total_scans INTEGER DEFAULT 0,
-    last_scanned_at TIMESTAMPTZ,
-    
-    -- Status
-    is_active BOOLEAN DEFAULT TRUE,
-    is_lost BOOLEAN DEFAULT FALSE,
-    lost_date TIMESTAMPTZ,
-    found_date TIMESTAMPTZ,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+create index IF not exists idx_pets_user_active on public.pets using btree (user_id, is_active) TABLESPACE pg_default;
 
--- Create indexes for pets table
-CREATE INDEX idx_pets_user_id ON pets(user_id);
-CREATE INDEX idx_pets_username ON pets(username);
-CREATE INDEX idx_pets_type ON pets(type);
-CREATE INDEX idx_pets_active ON pets(is_active);
-CREATE INDEX idx_pets_lost ON pets(is_lost);
+create index IF not exists idx_pets_user_id on public.pets using btree (user_id) TABLESPACE pg_default;
 
--- Create trigger for updated_at
-CREATE TRIGGER update_pets_updated_at BEFORE UPDATE ON pets
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create index IF not exists idx_pets_username on public.pets using btree (username) TABLESPACE pg_default;
 
--- ================================
--- QR CODE SCANS TABLE
--- ================================
-CREATE TABLE qr_scans (
-    id SERIAL PRIMARY KEY,
-    pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
-    scanner_ip VARCHAR(45),
-    scanner_location_lat NUMERIC(10,8),
-    scanner_location_lng NUMERIC(11,8),
-    scanner_user_agent TEXT,
-    scanner_country VARCHAR(100),
-    scanner_city VARCHAR(100),
-    whatsapp_shared BOOLEAN DEFAULT FALSE,
-    whatsapp_shared_at TIMESTAMPTZ,
-    scanned_at TIMESTAMPTZ DEFAULT NOW()
-);
+create index IF not exists idx_pets_user_active_type on public.pets using btree (user_id, is_active, type) TABLESPACE pg_default;
 
--- Create indexes for qr_scans table
-CREATE INDEX idx_qr_scans_pet_id ON qr_scans(pet_id);
-CREATE INDEX idx_qr_scans_scanned_at ON qr_scans(scanned_at);
-CREATE INDEX idx_qr_scans_location ON qr_scans(scanner_location_lat, scanner_location_lng);
+create index IF not exists idx_pets_username_active on public.pets using btree (username, is_active) TABLESPACE pg_default;
 
--- ================================
--- ADMINS TABLE
--- ================================
-CREATE TABLE admins (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) DEFAULT 'admin' CHECK (role IN ('super_admin', 'admin', 'support')),
-    permissions JSONB,
-    is_active BOOLEAN DEFAULT TRUE,
-    last_login TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+create index IF not exists idx_pets_whatsapp on public.pets using btree (whatsapp) TABLESPACE pg_default;
 
--- Create indexes for admins table
-CREATE INDEX idx_admins_email ON admins(email);
-CREATE INDEX idx_admins_role ON admins(role);
-CREATE INDEX idx_admins_active ON admins(is_active);
+create index IF not exists idx_pets_instagram on public.pets using btree (instagram) TABLESPACE pg_default;
 
--- Create trigger for updated_at
-CREATE TRIGGER update_admins_updated_at BEFORE UPDATE ON admins
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create trigger trigger_log_privacy_changes
+after
+update on pets for EACH row
+execute FUNCTION log_privacy_change ();
 
--- ================================
--- SUPPORT TICKETS TABLE
--- ================================
-CREATE TABLE support_tickets (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
-    pet_id INTEGER REFERENCES pets(id) ON DELETE SET NULL,
-    subject VARCHAR(200) NOT NULL,
-    description TEXT NOT NULL,
-    status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
-    priority VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-    category VARCHAR(20) DEFAULT 'other' CHECK (category IN ('technical', 'billing', 'lost_pet', 'account', 'other')),
-    contact_email VARCHAR(255),
-    contact_phone VARCHAR(20),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
-);
+create trigger update_pets_updated_at BEFORE
+update on pets for EACH row
+execute FUNCTION update_updated_at_column ();
+,
+create table public.privacy_changes (
+  id serial not null,
+  pet_id integer not null,
+  user_id integer not null,
+  field_name character varying(50) not null,
+  old_value boolean null,
+  new_value boolean null,
+  changed_at timestamp with time zone null default now(),
+  ip_address inet null,
+  constraint privacy_changes_pkey primary key (id),
+  constraint privacy_changes_pet_id_fkey foreign KEY (pet_id) references pets (id) on delete CASCADE,
+  constraint privacy_changes_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE
+) TABLESPACE pg_default;
 
--- Create indexes for support_tickets table
-CREATE INDEX idx_support_tickets_user_id ON support_tickets(user_id);
-CREATE INDEX idx_support_tickets_status ON support_tickets(status);
-CREATE INDEX idx_support_tickets_priority ON support_tickets(priority);
-CREATE INDEX idx_support_tickets_created_at ON support_tickets(created_at);
+create index IF not exists idx_privacy_changes_pet_id on public.privacy_changes using btree (pet_id) TABLESPACE pg_default;
 
--- Create trigger for updated_at
-CREATE TRIGGER update_support_tickets_updated_at BEFORE UPDATE ON support_tickets
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+create index IF not exists idx_privacy_changes_user_id on public.privacy_changes using btree (user_id) TABLESPACE pg_default;
 
--- ================================
--- SAMPLE DATA INSERTS
--- ================================
+create index IF not exists idx_privacy_changes_changed_at on public.privacy_changes using btree (changed_at) TABLESPACE pg_default;
+,
+create table public.qr_scans (
+  id serial not null,
+  pet_id integer not null,
+  scanner_ip character varying(45) null,
+  scanner_location_lat numeric(10, 8) null,
+  scanner_location_lng numeric(11, 8) null,
+  scanner_user_agent text null,
+  scanner_country character varying(100) null,
+  scanner_city character varying(100) null,
+  whatsapp_shared boolean null default false,
+  whatsapp_shared_at timestamp with time zone null,
+  scanned_at timestamp with time zone null default now(),
+  constraint qr_scans_pkey primary key (id),
+  constraint qr_scans_pet_id_fkey foreign KEY (pet_id) references pets (id) on delete CASCADE
+) TABLESPACE pg_default;
 
--- Insert Demo Admin
--- Password: admin123
-INSERT INTO admins (email, password_hash, name, role, permissions) VALUES
-('admin@whitetag.com', '$2b$10$vcNQkqJTBoYqDLnd1QPlJegjrrs0qlJ2dlQ14BIq/mj7oM0XRK4ye', 'WhiteTag Admin', 'super_admin', '{"users": "full", "pets": "full", "subscriptions": "full", "analytics": "full"}');
+create index IF not exists idx_qr_scans_location on public.qr_scans using btree (scanner_location_lat, scanner_location_lng) TABLESPACE pg_default;
 
--- Insert Demo Users
--- Demo password: demo123, Jagannath password: password123
-INSERT INTO users (email, password_hash, name, phone, whatsapp, instagram, address, is_demo) VALUES
-('demo@whitetag.com', '$2b$10$HAChsNhyDOX6NjRnm1y6/.9RbpiwaveqBicAwETx5Eb7hUTfx0LNy', 'Demo User', '+91 9876543210', '+91 9876543210', '@demo_user', 'Demo Address, Kochi, Kerala, India', TRUE),
-('jagannath@whitetag.com', '$2b$10$Hb8zHSytD1xWYXxGqlLLQ.moBgjC/WJE4JgKJAx0emG12tCeAMHaG', 'Jagannath P S', '+91 9645671184', '+91 9645671184', '@jagannath_p_s', 'Kochi, Kerala, India', FALSE);
+create index IF not exists idx_qr_scans_pet_date on public.qr_scans using btree (pet_id, scanned_at) TABLESPACE pg_default;
 
--- Insert Demo Subscriptions
-INSERT INTO subscriptions (user_id, plan_type, status, amount, start_date, end_date, payment_method) VALUES
-(1, 'annual', 'active', 599.00, '2024-01-01', '2024-12-31', 'demo'),
-(2, 'annual', 'active', 599.00, '2024-01-15', '2025-01-15', 'upi');
+create index IF not exists idx_qr_scans_pet_id on public.qr_scans using btree (pet_id) TABLESPACE pg_default;
 
--- Insert Demo Pets
-INSERT INTO pets (user_id, name, username, type, breed, age, color, description, photo_url, qr_code_generated) VALUES
-(1, 'Fluffy', 'fluffy_the_cat', 'Cat', 'Persian', '3 years', 'White with grey patches', 'Very friendly and loves belly rubs. Responds to the name Fluffy. Has a small scar on left ear.', 'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=500&h=500&fit=crop', TRUE),
-(1, 'Bruno', 'bruno_golden', 'Dog', 'Golden Retriever', '5 years', 'Golden', 'Friendly dog who loves playing fetch. Very social with other dogs and people.', 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=500&h=500&fit=crop', FALSE),
-(2, 'Whiskers', 'whiskers_siamese', 'Cat', 'Siamese', '2 years', 'Cream with dark points', 'Shy but affectionate cat. Likes quiet spaces and gentle petting.', 'https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?w=500&h=500&fit=crop', TRUE);
+create index IF not exists idx_qr_scans_scanned_at on public.qr_scans using btree (scanned_at) TABLESPACE pg_default;
+,
+create table public.subscription_plans (
+  id serial not null,
+  name character varying(100) not null,
+  description text null,
+  duration_months integer not null,
+  amount numeric(10, 2) not null,
+  is_active boolean null default true,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint subscription_plans_pkey primary key (id),
+  constraint subscription_plans_amount_check check ((amount >= (0)::numeric)),
+  constraint subscription_plans_duration_check check ((duration_months > 0))
+) TABLESPACE pg_default;
 
--- Insert Demo QR Scans
-INSERT INTO qr_scans (pet_id, scanner_ip, scanner_location_lat, scanner_location_lng, scanner_city, whatsapp_shared) VALUES
-(1, '192.168.1.100', 9.9312, 76.2673, 'Kochi', TRUE),
-(1, '203.192.217.210', 19.0760, 72.8777, 'Mumbai', FALSE),
-(3, '106.51.75.142', 28.7041, 77.1025, 'Delhi', TRUE);
+create index IF not exists idx_subscription_plans_active on public.subscription_plans using btree (is_active) TABLESPACE pg_default;
 
--- Update pet scan counts
-UPDATE pets SET total_scans = 2, last_scanned_at = NOW() WHERE id = 1;
-UPDATE pets SET total_scans = 1, last_scanned_at = NOW() WHERE id = 3;
+create trigger update_subscription_plans_updated_at BEFORE
+update on subscription_plans for EACH row
+execute FUNCTION update_updated_at_column ();
+,
+create table public.subscriptions (
+  id serial not null,
+  user_id integer not null,
+  plan_type character varying(20) null default 'annual'::character varying,
+  status character varying(20) null default 'pending'::character varying,
+  amount numeric(10, 2) not null default 599.00,
+  currency character varying(3) null default 'INR'::character varying,
+  start_date date not null,
+  end_date date not null,
+  payment_method character varying(50) null,
+  payment_reference character varying(100) null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  plan_id integer null,
+  constraint subscriptions_pkey primary key (id),
+  constraint subscriptions_plan_id_fkey foreign KEY (plan_id) references subscription_plans (id) on delete set null,
+  constraint subscriptions_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE,
+  constraint subscriptions_plan_type_check check (
+    (
+      (plan_type)::text = any (
+        array[
+          ('annual'::character varying)::text,
+          ('monthly'::character varying)::text
+        ]
+      )
+    )
+  ),
+  constraint subscriptions_status_check check (
+    (
+      (status)::text = any (
+        array[
+          ('active'::character varying)::text,
+          ('expired'::character varying)::text,
+          ('cancelled'::character varying)::text,
+          ('pending'::character varying)::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
--- Insert Demo Support Ticket
-INSERT INTO support_tickets (user_id, pet_id, subject, description, status, category, contact_email) VALUES
-(2, 3, 'Pet Tag Not Scanning', 'The QR code on my pet tag is not scanning properly. When people try to scan it, they get an error message.', 'open', 'technical', 'jagannath@whitetag.com');
+create index IF not exists idx_subscriptions_end_date on public.subscriptions using btree (end_date) TABLESPACE pg_default;
 
--- ================================
--- USEFUL QUERIES FOR DEVELOPMENT
--- ================================
+create index IF not exists idx_subscriptions_status on public.subscriptions using btree (status) TABLESPACE pg_default;
 
--- View all users with their subscription status
--- SELECT u.name, u.email, u.phone, s.status, s.end_date FROM users u LEFT JOIN subscriptions s ON u.id = s.user_id;
+create index IF not exists idx_subscriptions_status_end on public.subscriptions using btree (status, end_date) TABLESPACE pg_default;
 
--- View all pets with owner information
--- SELECT p.name as pet_name, p.username, p.type, p.breed, u.name as owner_name, u.phone FROM pets p JOIN users u ON p.user_id = u.id;
+create index IF not exists idx_subscriptions_user_id on public.subscriptions using btree (user_id) TABLESPACE pg_default;
 
--- View QR scan analytics
--- SELECT p.name, p.username, p.total_scans, COUNT(qs.id) as scan_events FROM pets p LEFT JOIN qr_scans qs ON p.id = qs.pet_id GROUP BY p.id;
+create index IF not exists idx_subscriptions_plan_id on public.subscriptions using btree (plan_id) TABLESPACE pg_default;
 
--- Check expired subscriptions
--- SELECT u.name, u.email, s.end_date FROM users u JOIN subscriptions s ON u.id = s.user_id WHERE s.end_date < CURRENT_DATE AND s.status = 'active';
+create trigger update_subscriptions_updated_at BEFORE
+update on subscriptions for EACH row
+execute FUNCTION update_updated_at_column ();
+,
+create table public.support_tickets (
+  id serial not null,
+  user_id integer null,
+  admin_id integer null,
+  pet_id integer null,
+  subject character varying(200) not null,
+  description text not null,
+  status character varying(20) null default 'open'::character varying,
+  priority character varying(20) null default 'medium'::character varying,
+  category character varying(20) null default 'other'::character varying,
+  contact_email character varying(255) null,
+  contact_phone character varying(20) null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  resolved_at timestamp with time zone null,
+  constraint support_tickets_pkey primary key (id),
+  constraint support_tickets_pet_id_fkey foreign KEY (pet_id) references pets (id) on delete set null,
+  constraint support_tickets_admin_id_fkey foreign KEY (admin_id) references admins (id) on delete set null,
+  constraint support_tickets_user_id_fkey foreign KEY (user_id) references users (id) on delete set null,
+  constraint support_tickets_category_check check (
+    (
+      (category)::text = any (
+        array[
+          ('technical'::character varying)::text,
+          ('billing'::character varying)::text,
+          ('lost_pet'::character varying)::text,
+          ('account'::character varying)::text,
+          ('other'::character varying)::text
+        ]
+      )
+    )
+  ),
+  constraint support_tickets_priority_check check (
+    (
+      (priority)::text = any (
+        array[
+          ('low'::character varying)::text,
+          ('medium'::character varying)::text,
+          ('high'::character varying)::text,
+          ('urgent'::character varying)::text
+        ]
+      )
+    )
+  ),
+  constraint support_tickets_status_check check (
+    (
+      (status)::text = any (
+        array[
+          ('open'::character varying)::text,
+          ('in_progress'::character varying)::text,
+          ('resolved'::character varying)::text,
+          ('closed'::character varying)::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
--- ================================
--- ADDITIONAL PERFORMANCE INDEXES
--- ================================
+create index IF not exists idx_support_tickets_created_at on public.support_tickets using btree (created_at) TABLESPACE pg_default;
 
--- Composite indexes for common query patterns
-CREATE INDEX idx_pets_user_active ON pets(user_id, is_active);
-CREATE INDEX idx_subscriptions_status_end ON subscriptions(status, end_date);
-CREATE INDEX idx_qr_scans_pet_date ON qr_scans(pet_id, scanned_at);
+create index IF not exists idx_support_tickets_priority on public.support_tickets using btree (priority) TABLESPACE pg_default;
 
--- ================================
--- COMPLETION MESSAGE
--- ================================
-SELECT 'WhiteTag Database Schema Created Successfully!' as message; 
+create index IF not exists idx_support_tickets_status on public.support_tickets using btree (status) TABLESPACE pg_default;
+
+create index IF not exists idx_support_tickets_user_id on public.support_tickets using btree (user_id) TABLESPACE pg_default;
+
+create trigger update_support_tickets_updated_at BEFORE
+update on support_tickets for EACH row
+execute FUNCTION update_updated_at_column ();
+,
+create table public.users (
+  id serial not null,
+  email character varying(255) not null,
+  password_hash character varying(255) not null,
+  name character varying(100) not null,
+  phone character varying(20) null,
+  whatsapp character varying(20) null,
+  instagram character varying(50) null,
+  address text null,
+  is_active boolean null default true,
+  is_demo boolean null default false,
+  email_verified boolean null default false,
+  email_verified_at timestamp with time zone null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint users_pkey primary key (id),
+  constraint users_email_key unique (email),
+  constraint check_instagram_format check (
+    (
+      (instagram is null)
+      or (
+        (instagram)::text ~ '^@?[a-zA-Z0-9._]{1,30}$'::text
+      )
+    )
+  ),
+  constraint check_whatsapp_format check (
+    (
+      (whatsapp is null)
+      or ((whatsapp)::text ~ '^\+?[1-9]\d{1,14}$'::text)
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_users_active on public.users using btree (is_active) TABLESPACE pg_default;
+
+create index IF not exists idx_users_email on public.users using btree (email) TABLESPACE pg_default;
+
+create index IF not exists idx_users_phone on public.users using btree (phone) TABLESPACE pg_default;
+
+create index IF not exists idx_users_whatsapp on public.users using btree (whatsapp) TABLESPACE pg_default;
+
+create index IF not exists idx_users_instagram on public.users using btree (instagram) TABLESPACE pg_default;
+
+create index IF not exists idx_users_contact_info on public.users using btree (whatsapp, instagram) TABLESPACE pg_default
+where
+  (is_active = true);
+
+create trigger trigger_sanitize_contact_info BEFORE INSERT
+or
+update on users for EACH row
+execute FUNCTION sanitize_contact_info ();
+
+create trigger update_users_updated_at BEFORE
+update on users for EACH row
+execute FUNCTION update_updated_at_column ();
+
+,
+create table public.invites (
+  id serial not null,
+  token character varying(100) not null,
+  expires_at timestamp with time zone not null,
+  used boolean null default false,
+  used_at timestamp with time zone null,
+  created_by integer null,
+  used_by integer null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint invites_pkey primary key (id),
+  constraint invites_token_key unique (token),
+  constraint invites_created_by_fkey foreign KEY (created_by) references admins (id) on delete set null,
+  constraint invites_used_by_fkey foreign KEY (used_by) references users (id) on delete set null
+) TABLESPACE pg_default;
+
+create index IF not exists idx_invites_token on public.invites using btree (token) TABLESPACE pg_default;
+
+create index IF not exists idx_invites_expires_at on public.invites using btree (expires_at) TABLESPACE pg_default;
+
+create trigger update_invites_updated_at BEFORE
+update on invites for EACH row
+execute FUNCTION update_updated_at_column ();
+
+,
+create table public.fulfillment_tasks (
+  id serial not null,
+  user_id integer not null,
+  name character varying(120) not null,
+  email character varying(255) not null,
+  phone character varying(20),
+  pet_name character varying(120),
+  pet_username character varying(50),
+  stage character varying(30) not null default 'new_signup',
+  notes text,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint fulfillment_tasks_pkey primary key (id),
+  constraint fulfillment_tasks_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE,
+  constraint fulfillment_tasks_stage_check check (
+    ((stage)::text = any (array[
+      ('new_signup'::character varying)::text,
+      ('tag_writing'::character varying)::text,
+      ('packed'::character varying)::text,
+      ('out_for_delivery'::character varying)::text,
+      ('delivered'::character varying)::text
+    ]))
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_fulfillment_stage on public.fulfillment_tasks using btree (stage) TABLESPACE pg_default;
+create index IF not exists idx_fulfillment_user_id on public.fulfillment_tasks using btree (user_id) TABLESPACE pg_default;
+create index IF not exists idx_fulfillment_created_at on public.fulfillment_tasks using btree (created_at) TABLESPACE pg_default;
+
+create trigger update_fulfillment_tasks_updated_at BEFORE
+update on fulfillment_tasks for EACH row
+execute FUNCTION update_updated_at_column ();

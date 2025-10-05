@@ -61,6 +61,34 @@ export const adminService = {
     }
   },
 
+  // Update user details
+  async updateUser(userId: number, updates: {
+    name?: string
+    email?: string
+    phone?: string
+    whatsapp?: string
+    instagram?: string
+    address?: string
+    is_active?: boolean
+    password_hash?: string
+  }) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId)
+        .select('*')
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Update user error:', error)
+      throw error
+    }
+  },
+
 
   // Get all users with pagination
   async getAllUsers(limit: number = 50, offset: number = 0) {
@@ -75,7 +103,6 @@ export const adminService = {
             plan_type
           )
         `)
-        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1)
 
@@ -102,7 +129,6 @@ export const adminService = {
           )
         `)
         .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
-        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(20)
 

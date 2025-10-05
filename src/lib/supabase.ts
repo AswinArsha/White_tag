@@ -85,6 +85,18 @@ export interface QRScan {
   scanned_at: string
 }
 
+export interface Invite {
+  id: number
+  token: string
+  expires_at: string
+  used: boolean
+  used_at?: string
+  created_by?: number
+  used_by?: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Admin {
   id: number
   email: string

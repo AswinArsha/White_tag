@@ -7,7 +7,7 @@ const Privacy = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+      <header className="border-b bg-white sticky top-0 z-50 shadow-xs">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -41,7 +41,7 @@ const Privacy = () => {
         </div>
 
         {/* Privacy Overview */}
-        <Card className="mb-8 border border-gray-200 shadow-sm">
+        <Card className="mb-8 border border-gray-200 shadow-xs">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-xl">
               <Eye className="w-5 h-5 text-blue-600" />
@@ -71,7 +71,7 @@ const Privacy = () => {
 
         {/* Privacy Sections */}
         <div className="space-y-8">
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>1. Information We Collect</CardTitle>
             </CardHeader>
@@ -107,7 +107,7 @@ const Privacy = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>2. How We Use Your Information</CardTitle>
             </CardHeader>
@@ -123,7 +123,7 @@ const Privacy = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>3. Information Sharing & Privacy Controls</CardTitle>
             </CardHeader>
@@ -164,7 +164,7 @@ const Privacy = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>4. Data Security</CardTitle>
             </CardHeader>
@@ -179,7 +179,7 @@ const Privacy = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>5. Your Rights</CardTitle>
             </CardHeader>
@@ -195,7 +195,7 @@ const Privacy = () => {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle>6. Contact Us</CardTitle>
             </CardHeader>

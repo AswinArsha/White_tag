@@ -10,7 +10,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+      <header className="border-b bg-white sticky top-0 z-50 shadow-xs">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -147,7 +147,7 @@ const Index = () => {
               
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <CheckCircle className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
@@ -157,7 +157,7 @@ const Index = () => {
                 </div>
                 
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <CheckCircle className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
@@ -167,7 +167,7 @@ const Index = () => {
                 </div>
                 
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <CheckCircle className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
@@ -177,7 +177,7 @@ const Index = () => {
                 </div>
                 
                 <div className="flex items-start space-x-4">
-                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center shrink-0 mt-1">
                     <CheckCircle className="w-5 h-5 text-orange-600" />
                   </div>
                   <div>
@@ -208,22 +208,22 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-xl p-6 shadow-xs border border-gray-100">
               <QrCode className="w-10 h-10 text-blue-600 mb-4" />
               <h3 className="font-semibold mb-2 text-gray-900">Durable QR Tags</h3>
               <p className="text-sm text-gray-600">Weather-resistant metal tags with laser-engraved QR codes</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-xl p-6 shadow-xs border border-gray-100">
               <Smartphone className="w-10 h-10 text-green-600 mb-4" />
               <h3 className="font-semibold mb-2 text-gray-900">Instant Alerts</h3>
               <p className="text-sm text-gray-600">Real-time notifications when someone scans your pet's tag</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-xl p-6 shadow-xs border border-gray-100">
               <Shield className="w-10 h-10 text-purple-600 mb-4" />
               <h3 className="font-semibold mb-2 text-gray-900">Privacy Controls</h3>
               <p className="text-sm text-gray-600">Choose exactly what information to display publicly</p>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-xl p-6 shadow-xs border border-gray-100">
               <Users className="w-10 h-10 text-orange-600 mb-4" />
               <h3 className="font-semibold mb-2 text-gray-900">Multiple Contacts</h3>
               <p className="text-sm text-gray-600">Add family members and emergency contacts</p>
@@ -252,23 +252,23 @@ const Index = () => {
             <CardContent>
               <ul className="space-y-4 mb-8 text-left">
                 <li className="flex items-center text-base">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 shrink-0" />
                   Premium metal pet tag with free delivery
                 </li>
                 <li className="flex items-center text-base">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 shrink-0" />
                   Unlimited pet profiles and QR codes
                 </li>
                 <li className="flex items-center text-base">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 shrink-0" />
                   WhatsApp location sharing integration
                 </li>
                 <li className="flex items-center text-base">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 shrink-0" />
                   24/7 customer support via WhatsApp
                 </li>
                 <li className="flex items-center text-base">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-3 shrink-0" />
                   1 year warranty on physical tags
                 </li>
               </ul>

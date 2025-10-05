@@ -7,7 +7,7 @@ const Support = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+      <header className="border-b bg-white sticky top-0 z-50 shadow-xs">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -42,7 +42,7 @@ const Support = () => {
         {/* Quick Actions */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           <Link to="/contact">
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="border border-gray-200 shadow-xs hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="text-center">
                 <MessageCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
                 <CardTitle className="text-lg">Live Chat Support</CardTitle>
@@ -54,7 +54,7 @@ const Support = () => {
           </Link>
 
           <a href="tel:+919645671184">
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="border border-gray-200 shadow-xs hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="text-center">
                 <Phone className="w-12 h-12 text-blue-600 mx-auto mb-3" />
                 <CardTitle className="text-lg">Call Support</CardTitle>
@@ -66,7 +66,7 @@ const Support = () => {
           </a>
 
           <a href="mailto:support@whitetag.in">
-            <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="border border-gray-200 shadow-xs hover:shadow-md transition-shadow cursor-pointer">
               <CardHeader className="text-center">
                 <Mail className="w-12 h-12 text-purple-600 mx-auto mb-3" />
                 <CardTitle className="text-lg">Email Support</CardTitle>
@@ -81,7 +81,7 @@ const Support = () => {
         {/* Help Categories */}
         <div className="grid lg:grid-cols-2 gap-8 mb-12">
           {/* Getting Started */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Smartphone className="w-5 h-5 text-blue-600" />
@@ -91,7 +91,7 @@ const Support = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">How to Register Your Pet</h4>
                     <p className="text-sm text-gray-600">Step-by-step guide to create your pet's profile and generate QR codes.</p>
@@ -99,7 +99,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Subscription Activation</h4>
                     <p className="text-sm text-gray-600">Learn how to activate your ₹599 annual subscription and get your pet tags.</p>
@@ -107,7 +107,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Setting Up Privacy Controls</h4>
                     <p className="text-sm text-gray-600">Configure what information is visible when someone scans your pet's QR code.</p>
@@ -118,7 +118,7 @@ const Support = () => {
           </Card>
 
           {/* QR Code Help */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <QrCode className="w-5 h-5 text-blue-600" />
@@ -128,7 +128,7 @@ const Support = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">QR Code Not Scanning</h4>
                     <p className="text-sm text-gray-600">Troubleshoot common QR code scanning issues and camera problems.</p>
@@ -136,7 +136,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Generating New QR Codes</h4>
                     <p className="text-sm text-gray-600">How to create and download QR codes for printing on pet tags.</p>
@@ -144,7 +144,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Tag Replacement</h4>
                     <p className="text-sm text-gray-600">Request replacement tags for damaged or lost QR codes.</p>
@@ -155,7 +155,7 @@ const Support = () => {
           </Card>
 
           {/* Account Management */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Settings className="w-5 h-5 text-blue-600" />
@@ -165,7 +165,7 @@ const Support = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Update Pet Information</h4>
                     <p className="text-sm text-gray-600">Modify your pet's details, photos, and contact information.</p>
@@ -173,7 +173,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Subscription Renewal</h4>
                     <p className="text-sm text-gray-600">Renew your annual subscription and maintain service continuity.</p>
@@ -181,7 +181,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Account Deletion</h4>
                     <p className="text-sm text-gray-600">Request account deletion and data removal if needed.</p>
@@ -192,7 +192,7 @@ const Support = () => {
           </Card>
 
           {/* Delivery & Orders */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Package className="w-5 h-5 text-blue-600" />
@@ -202,7 +202,7 @@ const Support = () => {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Track Your Order</h4>
                     <p className="text-sm text-gray-600">Check the status of your metal pet tag delivery across India.</p>
@@ -210,7 +210,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Delivery Issues</h4>
                     <p className="text-sm text-gray-600">Report delivery problems or update your shipping address.</p>
@@ -218,7 +218,7 @@ const Support = () => {
                 </div>
                 
                 <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
                   <div>
                     <h4 className="font-medium text-gray-900">Warranty Claims</h4>
                     <p className="text-sm text-gray-600">File warranty claims for defective tags within 1 year of purchase.</p>
@@ -230,7 +230,7 @@ const Support = () => {
         </div>
 
         {/* Frequently Asked Questions */}
-        <Card className="border border-gray-200 shadow-sm mb-12">
+        <Card className="border border-gray-200 shadow-xs mb-12">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Book className="w-5 h-5 text-blue-600" />
@@ -303,7 +303,7 @@ const Support = () => {
         </Card>
 
         {/* Emergency Alert */}
-        <Card className="border border-red-200 bg-red-50 shadow-sm mb-12">
+        <Card className="border border-red-200 bg-red-50 shadow-xs mb-12">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-800">
               <AlertCircle className="w-5 h-5" />
@@ -338,7 +338,7 @@ const Support = () => {
 
         {/* Still Need Help */}
         <div className="text-center">
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+          <div className="bg-white rounded-2xl p-8 shadow-xs border border-gray-200">
             <Shield className="w-16 h-16 text-blue-600 mx-auto mb-4" />
             <h3 className="text-2xl font-bold mb-4 text-gray-900">Still Need Help?</h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">

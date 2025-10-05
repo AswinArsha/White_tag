@@ -1,5 +1,5 @@
 
-import { Toaster } from "@/components/ui/toaster";
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import AddPet from "./pages/AddPet";
 import EditPet from "./pages/EditPet";
 import PetProfile from "./pages/PetProfile";
+import Invite from "./pages/Invite";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Support from "./pages/Support";
@@ -26,7 +27,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
+
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
@@ -34,6 +35,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/invite" element={<Invite />} />
+            <Route path="/invite/:token" element={<Invite />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/add-pet" element={<AddPet />} />
             <Route path="/dashboard/edit-pet/:petId" element={<EditPet />} />

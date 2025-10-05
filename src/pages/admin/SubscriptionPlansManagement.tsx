@@ -41,11 +41,15 @@ const SubscriptionPlansManagement = ({ onPlansUpdate }: SubscriptionPlansManagem
   // Load subscription plans
   useEffect(() => {
     loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadPlans = async () => {
     try {
-      setLoading(true);
+      // Avoid flashing loader if we already have plans loaded
+      if (plans.length === 0) {
+        setLoading(true);
+      }
       const plansData = await subscriptionPlansService.getAllPlans();
       setPlans(plansData);
     } catch (error) {

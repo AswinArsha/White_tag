@@ -7,7 +7,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+      <header className="border-b bg-white sticky top-0 z-50 shadow-xs">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -121,7 +121,7 @@ const Contact = () => {
         {/* Support Information */}
         <div className="grid lg:grid-cols-2 gap-8 mb-12">
           {/* Business Hours */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-blue-600" />
@@ -152,7 +152,7 @@ const Contact = () => {
           </Card>
 
           {/* Business Information */}
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border border-gray-200 shadow-xs">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <MapPin className="w-5 h-5 text-blue-600" />
@@ -200,7 +200,7 @@ const Contact = () => {
         </div>
 
         {/* Common Questions */}
-        <Card className="border border-gray-200 shadow-sm mb-12">
+        <Card className="border border-gray-200 shadow-xs mb-12">
           <CardHeader>
             <CardTitle>Common Questions</CardTitle>
           </CardHeader>
@@ -256,7 +256,7 @@ const Contact = () => {
         </Card>
 
         {/* Emergency Contact */}
-        <Card className="border border-red-200 bg-red-50 shadow-sm">
+        <Card className="border border-red-200 bg-red-50 shadow-xs">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-800">
               <Phone className="w-5 h-5" />

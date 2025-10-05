@@ -264,7 +264,7 @@ const EditPet = () => {
                 alt={petData.name || "Pet"}
                 className="w-full h-64 object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/20 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4">
                 <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">{petData.name}</h1>
                 <Badge className="bg-white/90 text-gray-900 font-medium border-0">
@@ -450,7 +450,7 @@ const EditPet = () => {
                     </div>
                     <Button
                       size="sm"
-                      variant={showWhatsApp ? "default" : "outline"}
+                      variant={showWhatsApp ? "default" : "outline-solid"}
                       onClick={() => setShowWhatsApp(!showWhatsApp)}
                       className="min-w-[60px]"
                     >
@@ -468,7 +468,7 @@ const EditPet = () => {
                     </div>
                     <Button
                       size="sm"
-                      variant={showInstagram ? "default" : "outline"}
+                      variant={showInstagram ? "default" : "outline-solid"}
                       onClick={() => setShowInstagram(!showInstagram)}
                       className="min-w-[60px]"
                     >
@@ -486,7 +486,7 @@ const EditPet = () => {
                     </div>
                     <Button
                       size="sm"
-                      variant={showAddress ? "default" : "outline"}
+                      variant={showAddress ? "default" : "outline-solid"}
                       onClick={() => setShowAddress(!showAddress)}
                       className="min-w-[60px]"
                     >
