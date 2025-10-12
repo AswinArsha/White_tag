@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+// Removed Select and Checkbox UI components for simplified form
 import { Heart, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { authService } from "@/lib/auth";
 import { petService, uploadPetPhoto } from "@/lib/pets";
 import imageCompression from "browser-image-compression";
 import { inviteService } from "@/lib/invites";
+import { supabase } from "@/lib/supabase";
 import { fulfillmentService } from "@/lib/fulfillment";
 
 // A simple two-step wizard that collects user registration then pet details.
@@ -41,7 +41,7 @@ const Invite = () => {
   // Step 2: Pet data
   const [petData, setPetData] = useState({
     name: "",
-    type: "",
+    type: "Dog", // default type since selector removed
     breed: "",
     age: "",
     color: "",
@@ -212,6 +212,21 @@ const Invite = () => {
           console.warn("Failed to consume invite token:", consumeErr);
         }
       }
+      // send transactional email before showing confetti
+      try {
+        await supabase.functions.invoke("send-whitetag-email", {
+          body: {
+            email: userData.email,
+            name: userData.name,
+            petName: createdPet?.name,
+            username: createdPet?.username,
+          },
+        });
+        console.log("Welcome email sent!");
+      } catch (mailErr) {
+        console.warn("Failed to send welcome email:", mailErr);
+      }
+
       // Success state with confetti
       setSuccess(true);
       try {
@@ -263,10 +278,12 @@ const Invite = () => {
             <CardTitle className="mt-0">You're all set!</CardTitle>
             <CardDescription>Your account and pet were created successfully.</CardDescription>
           </CardHeader>
-          <CardContent className="text-center pt-0">
-            <p className="text-sm text-muted-foreground">You can close this page. You’ll receive updates from our team shortly.</p>
-         
-          </CardContent>
+     <CardContent className="text-center pt-0">
+  <p className="text-sm text-muted-foreground">
+    You can close this page. You’ll receive further updates and notifications at your provided email address.
+  </p>
+</CardContent>
+
         </Card>
       </div>
     );
@@ -392,21 +409,7 @@ const Invite = () => {
                     <Label htmlFor="pet-name">Pet Name *</Label>
                     <Input id="pet-name" value={petData.name} onChange={(e) => handlePetChange("name", e.target.value)} placeholder="e.g., Fluffy" required disabled={submitting} />
                   </div>
-                  <div>
-                    <Label htmlFor="pet-type">Pet Type *</Label>
-                    <Select onValueChange={(value) => handlePetChange("type", value)}>
-                      <SelectTrigger id="pet-type">
-                        <SelectValue placeholder="Select pet type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Dog">Dog</SelectItem>
-                        <SelectItem value="Cat">Cat</SelectItem>
-                        <SelectItem value="Bird">Bird</SelectItem>
-                        <SelectItem value="Rabbit">Rabbit</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Pet Type selector removed as requested; default is applied */}
                   <div>
                     <Label htmlFor="breed">Breed</Label>
                     <Input id="breed" value={petData.breed} onChange={(e) => handlePetChange("breed", e.target.value)} placeholder="e.g., Golden Retriever" disabled={submitting} />
@@ -442,21 +445,7 @@ const Invite = () => {
                 </div>
               </div>
 
-              {/* Privacy Settings */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showWhatsApp" checked={petData.showWhatsApp} onCheckedChange={(c) => handlePetChange("showWhatsApp", Boolean(c))} disabled={submitting} />
-                  <Label htmlFor="showWhatsApp" className="text-sm">Show WhatsApp number publicly</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showInstagram" checked={petData.showInstagram} onCheckedChange={(c) => handlePetChange("showInstagram", Boolean(c))} disabled={submitting} />
-                  <Label htmlFor="showInstagram" className="text-sm">Show Instagram handle publicly</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="showAddress" checked={petData.showAddress} onCheckedChange={(c) => handlePetChange("showAddress", Boolean(c))} disabled={submitting} />
-                  <Label htmlFor="showAddress" className="text-sm">Show Address publicly</Label>
-                </div>
-              </div>
+              {/* Privacy checkboxes removed as requested */}
 
               <div className="flex justify-between">
                 <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={submitting}>Back</Button>
@@ -467,7 +456,7 @@ const Invite = () => {
                       Creating...
                     </>
                   ) : (
-                    "Create Account & Pet"
+                    "Create Pet Profile "
                   )}
                 </Button>
               </div>

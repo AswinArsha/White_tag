@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { fulfillmentService, type FulfillmentStage, type FulfillmentTask } from "@/lib/fulfillment";
 import { Search, Calendar as CalendarIcon, X } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const stageOrder: FulfillmentStage[] = ["new_signup", "tag_writing", "packed", "out_for_delivery", "delivered"];
 const stageLabels: Record<FulfillmentStage, string> = {
@@ -14,7 +15,7 @@ const stageLabels: Record<FulfillmentStage, string> = {
   tag_writing: "Tag Writing",
   packed: "Packed",
   out_for_delivery: "Out for Delivery",
-  delivered: "Delivered & Activated",
+  delivered: "Delivered ",
 };
 
 // slim top border accent (no shadows)
@@ -32,6 +33,7 @@ const FulfillmentBoard: React.FC = () => {
   const [items, setItems] = useState<FulfillmentTask[]>([]);
   const [search, setSearch] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [sendingById, setSendingById] = useState<Record<number, boolean>>({});
 
   // 👇 Controlled popover state to ensure the calendar always opens
   const [dateOpen, setDateOpen] = useState(false);
@@ -111,6 +113,31 @@ const FulfillmentBoard: React.FC = () => {
       console.error(e);
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, stage: prevStage } : it)));
       toast.error("Failed to move card");
+    }
+  };
+
+  const sendStageEmail = async (task: FulfillmentTask) => {
+    if (!task.email) {
+      toast.error("No email available for this task");
+      return;
+    }
+    setSendingById((m) => ({ ...m, [task.id]: true }));
+    try {
+      await supabase.functions.invoke("send-whitetag-email", {
+        body: {
+          email: task.email,
+          name: task.name,
+          petName: task.pet_name,
+          username: task.pet_username,
+          template: task.stage,
+        },
+      });
+      toast.success("Email sent");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to send email");
+    } finally {
+      setSendingById((m) => ({ ...m, [task.id]: false }));
     }
   };
 
@@ -310,6 +337,16 @@ const FulfillmentBoard: React.FC = () => {
                           {item.phone && (
                             <div className="text-[11px] text-muted-foreground truncate">{item.phone}</div>
                           )}
+                          <div className="mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => sendStageEmail(item)}
+                              disabled={!!sendingById[item.id]}
+                            >
+                              {sendingById[item.id] ? "Sending..." : "Send Email"}
+                            </Button>
+                          </div>
                         </CardHeader>
                       </Card>
                     );
